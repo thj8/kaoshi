@@ -61,7 +61,7 @@ npm run build               # 类型检查 + 构建（vue-tsc + vite）
 
 - 前端+反代入口：`http://<服务器IP>:13000`（nginx 已反代 `/api`、`/ws` 到后端，任意 IP/域名访问无需改配置）
 - 后端 API 直连：`http://<服务器IP>:18080`
-- 用户端 `/join`，管理端 `/admin/login`（默认 admin/admin123）
+- 用户端 `/join`，管理端 `/admin/login`（admin，密码在 `docker-compose.yml` 的 `KAOSHI_ADMIN_PASS`，已随机生成）
 - 容器日志：`docker compose logs -f server` / `web`；重置测试数据见 README「数据重置」
 
 ## 环境注意事项（重要，容易踩坑）

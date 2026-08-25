@@ -36,9 +36,9 @@ services:
       KAOSHI_ADDR: ":8080"
       KAOSHI_MYSQL_DSN: "root:root123456@tcp(mysql:3306)/kaoshi?charset=utf8mb4&parseTime=True&loc=Local"
       KAOSHI_REDIS_ADDR: "redis:6379"
-      KAOSHI_JWT_SECRET: "change-me-in-production"
+      KAOSHI_JWT_SECRET: "***REMOVED***"
       KAOSHI_ADMIN_USER: "admin"
-      KAOSHI_ADMIN_PASS: "admin123"
+      KAOSHI_ADMIN_PASS: "***REMOVED***"
     ports:
       - "18080:8080"
     depends_on:
