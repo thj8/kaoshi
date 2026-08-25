@@ -61,7 +61,7 @@ npm run build               # 类型检查 + 构建（vue-tsc + vite）
 
 - 前端+反代入口：`http://<服务器IP>:13000`（nginx 已反代 `/api`、`/ws` 到后端，任意 IP/域名访问无需改配置）
 - 后端 API 直连：`http://<服务器IP>:18080`
-- 用户端 `/join`，管理端 `/admin/login`（admin，密码在 `docker-compose.yml` 的 `KAOSHI_ADMIN_PASS`，已随机生成）
+- 用户端 `/join`，管理端 `/admin/login`（admin，密码在 `.env` 的 `ADMIN_PASS`，不入库）
 - 容器日志：`docker compose logs -f server` / `web`；重置测试数据见 README「数据重置」
 
 ## 环境注意事项（重要，容易踩坑）
@@ -93,7 +93,7 @@ npm run build               # 类型检查 + 构建（vue-tsc + vite）
 - **管理端建题字段名**：REST 用 `time_limit`（秒），不是 `duration`——传错会静默落 0 导致题目无倒计时不强制收卷
 - Vue：一律 `<script setup lang="ts">` 组合式 API；REST 调用走 `src/api/index.ts` 的 `http`/`unwrap`；token 存 localStorage（key 见 `LS` 常量）
 - 新增页面：用户端放 `src/user/`；管理后台页面放 `src/admin/` 并作为 `AdminLayout` 的子路由注册（`src/router/index.ts`），侧边栏导航同步更新
-- **加入方式**：用户先在 `/login` 注册/登录（用户名+密码+昵称，bcrypt 存储），再通过 `/join/<quizID>` 链接自动 `POST /api/join {quiz_id}` 换取答题作用域 token（含 quiz_id，供 WS 与答题接口鉴权）
+- **加入方式**：账号由管理端「用户管理」创建（无自助注册接口）；用户在 `/login` 登录，再通过 `/join/<quizID>` 链接自动 `POST /api/join {quiz_id}` 换取答题作用域 token（含 quiz_id，供 WS 与答题接口鉴权）
 - 样式用全局 CSS 变量（`src/styles/main.css`），移动端适配必须考虑（现场手机答题）
 
 ## Git 约定

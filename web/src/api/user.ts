@@ -34,11 +34,6 @@ export function globalToken(): string {
 }
 
 export const userApi = {
-  async register(username: string, password: string, nickname: string) {
-    return unwrap<{ token: string; user: AuthUser }>(
-      await http.post('/api/auth/register', { username, password, nickname })
-    )
-  },
   async login(username: string, password: string) {
     return unwrap<{ token: string; user: AuthUser }>(
       await http.post('/api/auth/login', { username, password })

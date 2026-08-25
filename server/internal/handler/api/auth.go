@@ -14,42 +14,7 @@ import (
 // userLoginLimiter 用户登录失败限速：同 IP 10 次失败锁 1 分钟（比 admin 宽松，兼顾多人同一出口）
 var userLoginLimiter = middleware.NewIPLimiter(10, time.Minute)
 
-// ---------- 用户注册 / 登录 ----------
-
-type registerReq struct {
-	Username string `json:"username" binding:"required,min=2,max=32"`
-	Password string `json:"password" binding:"required,min=10,max=64"`
-	Nickname string `json:"nickname" binding:"required,min=1,max=32"`
-}
-
-// Register POST /api/auth/register
-func (h *Handler) Register(c *gin.Context) {
-	var req registerReq
-	if err := c.ShouldBindJSON(&req); err != nil {
-		fail(c, 400, "用户名2-32位、密码至少10位、昵称1-32位")
-		return
-	}
-	var cnt int64
-	h.DB.Model(&model.User{}).Where("username = ?", req.Username).Count(&cnt)
-	if cnt > 0 {
-		fail(c, 400, "用户名已存在")
-		return
-	}
-	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
-	if err != nil {
-		fail(c, 500, "系统错误")
-		return
-	}
-	user := model.User{
-		Username: req.Username, PasswordHash: string(hash),
-		Nickname: req.Nickname,
-	}
-	if err := h.DB.Create(&user).Error; err != nil {
-		fail(c, 500, "注册失败")
-		return
-	}
-	ok(c, gin.H{"token": h.signGlobalToken(&user), "user": userBrief(&user)})
-}
+// ---------- 用户登录 ----------
 
 type loginReq struct {
 	Username string `json:"username" binding:"required"`

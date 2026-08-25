@@ -1,4 +1,6 @@
 // 阶段8 加固 E2E：鉴权越权 / 防重复计分 / 答案泄露 / 100并发抢答 / 断线重连恢复
+import { readFileSync } from 'node:fs'
+const env = k => process.env[k] || (readFileSync('.env', 'utf8').match(new RegExp('^' + k + '=(.*)$', 'm')) || [])[1] || ''
 const B = process.env.BASE_URL || 'http://127.0.0.1:18080'
 const j = async (m, u, b, tok) => {
   const r = await fetch(B + u, { method: m, headers: { 'Content-Type': 'application/json', ...(tok ? { Authorization: 'Bearer ' + tok } : {}) }, body: b ? JSON.stringify(b) : undefined })
@@ -19,7 +21,11 @@ function connect(token, onMsg) {
 }
 
 ;(async () => {
-  const at = (await j('POST', '/api/admin/login', { username: 'admin', password: process.env.ADMIN_PASS || '***REMOVED***' })).data.token
+  const at = (await j('POST', '/api/admin/login', { username: 'admin', password: env('ADMIN_PASS') })).data.token
+  const mkU = async u => { // 注册已下线：admin 建号 + 登录
+    await j('POST', '/api/admin/users', { username: u, password: 'test-pass-1234', nickname: 'U' }, at)
+    return (await j('POST', '/api/auth/login', { username: u, password: 'test-pass-1234' })).data
+  }
   const sfx = Date.now() % 100000
 
   // ---------- 1. 普通 quiz：鉴权 / 防重复 / 答案泄露 ----------
@@ -28,7 +34,7 @@ function connect(token, onMsg) {
   const qA = (await j('POST', `/api/admin/quiz/${quizA.id}/questions`, { type: 'single', content: 'A?', answer: 'B', score: 10, required: true, sort: 1, options: [{ label: 'A', content: '1' }, { label: 'B', content: '2' }] }, at)).data
   await j('POST', `/api/admin/quiz/${quizB.id}/questions`, { type: 'single', content: 'B?', answer: 'A', score: 10, required: true, sort: 1, options: [{ label: 'A', content: '1' }, { label: 'B', content: '2' }] }, at)
 
-  const ua = (await j('POST', '/api/auth/register', { username: `s8u${sfx}`, password: 'test-pass-1234', nickname: 'SecUser' })).data
+  const ua = await mkU(`s8u${sfx}`)
   const ja = (await j('POST', '/api/join', { quiz_id: quizA.id }, ua.token)).data
   const jb = (await j('POST', '/api/join', { quiz_id: quizB.id }, ua.token)).data
 
@@ -38,7 +44,7 @@ function connect(token, onMsg) {
   check('越权：跨 quiz token 提交被拒', cross.code !== 0, `code=${cross.code} msg=${cross.msg}`)
 
   // 1b. 未参加 quizA 的裸 token 也不能
-  const stranger = (await j('POST', '/api/auth/register', { username: `s8x${sfx}`, password: 'test-pass-1234', nickname: 'Stranger' })).data
+  const stranger = await mkU(`s8x${sfx}`)
   const noJoin = await j('POST', `/api/question/${qA.id}/answer`, { answer: 'B', duration: 100 }, stranger.token)
   check('越权：未参加者提交被拒', noJoin.code !== 0, `code=${noJoin.code}`)
 
@@ -60,7 +66,7 @@ function connect(token, onMsg) {
   const N = 100
   const tokens = []
   for (let i = 0; i < N; i++) {
-    const u = (await j('POST', '/api/auth/register', { username: `s8r${sfx}_${i}`, password: 'test-pass-1234', nickname: `r${i}` })).data
+    const u = await mkU(`s8r${sfx}_${i}`)
     tokens.push((await j('POST', '/api/join', { quiz_id: rq.id }, u.token)).data.token)
   }
   await j('POST', `/api/admin/quiz/${rq.id}/start`, {}, at)
@@ -75,7 +81,7 @@ function connect(token, onMsg) {
   // ---------- 3. 断线重连恢复 ----------
   const quizC = (await j('POST', '/api/admin/quiz', { title: 's8-reconnect', mode: 'normal', per_question_time: 120 }, at)).data
   const qC = (await j('POST', `/api/admin/quiz/${quizC.id}/questions`, { type: 'single', content: 'C?', answer: 'A', score: 10, required: true, sort: 1, options: [{ label: 'A', content: '1' }, { label: 'B', content: '2' }] }, at)).data
-  const uc = (await j('POST', '/api/auth/register', { username: `s8c${sfx}`, password: 'test-pass-1234', nickname: 'ReUser' })).data
+  const uc = await mkU(`s8c${sfx}`)
   const jc = (await j('POST', '/api/join', { quiz_id: quizC.id }, uc.token)).data
   let synced = null
   const ws1 = await connect(jc.token, m => { if (m.event === 'sync') synced = m.data })
