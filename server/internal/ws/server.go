@@ -27,12 +27,9 @@ type Server struct {
 	Snapshot SnapshotProvider
 }
 
-// HandleWS /ws?token=xxx WS 升级与读写泵
+// HandleWS /ws，token 走 Sec-WebSocket-Protocol 子协议（不下发 URL，避免进反代 access log）
 func (s *Server) HandleWS(c *gin.Context) {
-	token := c.Query("token")
-	if token == "" {
-		token = c.GetHeader("Sec-WebSocket-Protocol")
-	}
+	token := c.GetHeader("Sec-WebSocket-Protocol")
 	claims, err := auth.Parse(token)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "msg": "WS 鉴权失败"})

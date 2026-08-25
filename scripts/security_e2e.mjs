@@ -19,7 +19,7 @@ const leak = s => leakSecret(s) || /"answer"\s*:\s*"[A-D]"/.test(s)
 
 function connect(token, onMsg) {
   return new Promise((res, rej) => {
-    const ws = new WebSocket(`${B.replace(/^http/, "ws")}/ws?token=${encodeURIComponent(token)}`)
+    const ws = new WebSocket(`${B.replace(/^http/, "ws")}/ws`, [token])
     const t = setTimeout(() => rej(new Error('ws timeout')), 8000)
     ws.onmessage = e => { try { onMsg?.(JSON.parse(e.data)) } catch {} }
     ws.onopen = () => { clearTimeout(t); res(ws) }
