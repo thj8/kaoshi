@@ -8,7 +8,7 @@
 
 - 需求全文见 `task.md`
 - 开发计划与阶段划分见 `plan.md`，使用说明见 `README.md`
-- 当前进度：阶段 0-4 ✅ 已完成并 E2E 验证；阶段 5+（抢答/统计/压测）待开发
+- 当前进度：阶段 0-5 ✅ 已完成并集成验证（含 50 并发抢答原子性）；阶段 6+（积分细化/统计页/压测）待开发
 
 ## 仓库结构
 
@@ -80,7 +80,7 @@ npm run build               # 类型检查 + 构建（vue-tsc + vite）
 2. **正确答案绝不下发**：`Question.Answer`、`Analysis` 用 `json:"-"` 剥离；仅 `answer:reveal` 且 quiz 开启 `show_answer` 时才发送
 3. **防重复**：answers / rush_records 表的 `(quiz_id, question_id, user_id)` 唯一索引 + Redis 判重，双保险；分数只在首次提交时累加
 4. **倒计时以服务器时间为准**：下发 deadline 时间戳 + 服务端定时广播剩余秒数；到点服务端强制收卷
-5. **抢答原子性**：Redis Lua/ZSET 判序，按服务器收到时间排序，禁止使用客户端时间
+5. **抢答原子性**：Redis Lua/ZSET 判序，按服务器收到时间排序，禁止使用客户端时间；`rank` 是 MySQL 8 保留字，SQL 中必须写 `` `rank` ``（反引号）
 6. **WS 消息协议**：`{event, data, ts}`，事件名对齐 task.md 二十二节（`activity:* / question:* / answer:* / rush:* / ranking:update / statistics:update`）
 7. **状态机**：`WAITING / RUNNING / PAUSED / RUSHING / ANSWERING / REVEALING / FINISHED`，任何写操作先校验状态
 
@@ -90,6 +90,7 @@ npm run build               # 类型检查 + 构建（vue-tsc + vite）
 - **锁纪律**：`Runtime.mu` 不可重入。持锁路径只能调 `xxxLocked` 内部方法（如 `getOptionsLocked`），对外方法（如 `GetOptions`）自带锁——历史上因重入死锁过一次
 - **GORM 零值陷阱**：`time.Time` 字段插入前必须显式赋值 `time.Now()`，否则 MySQL 拒收且错误被误判为唯一索引冲突
 - **GORM bool 陷阱**：模型 bool 字段禁止加 `default` 标签——显式 false 是零值，GORM 会改写字段为默认值（default:true 时显式 false 变 true，极隐蔽）
+- **管理端建题字段名**：REST 用 `time_limit`（秒），不是 `duration`——传错会静默落 0 导致题目无倒计时不强制收卷
 - Vue：一律 `<script setup lang="ts">` 组合式 API；REST 调用走 `src/api/index.ts` 的 `http`/`unwrap`；token 存 localStorage（key 见 `LS` 常量）
 - 新增页面：用户端放 `src/user/`；管理后台页面放 `src/admin/` 并作为 `AdminLayout` 的子路由注册（`src/router/index.ts`），侧边栏导航同步更新
 - **加入方式**：用户先在 `/login` 注册/登录（用户名+密码+昵称，bcrypt 存储），再通过 `/join/<quizID>` 链接自动 `POST /api/join {quiz_id}` 换取答题作用域 token（含 quiz_id，供 WS 与答题接口鉴权）
