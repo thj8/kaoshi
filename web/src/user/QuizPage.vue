@@ -275,6 +275,7 @@ function handleEvent(msg: WSMessage) {
 
     case Ev.QuestionPublish:
       serverOffset = (d.server_now || Date.now()) - Date.now()
+      if (store.question?.id !== d.question?.id) resetRushState()
       store.question = d.question
       store.deadline_at = d.deadline_at || 0
       store.status = d.status || 'ANSWERING'
@@ -330,7 +331,7 @@ function handleEvent(msg: WSMessage) {
     case Ev.RushStart:
       store.status = 'RUSHING'
       store.rush_active = true
-      store.rushState = store.rushState === 'idle' || store.rushState === 'ended' ? 'active' : store.rushState
+      store.rushState = 'active' // 新窗口重新抢：旧题的 won/lost 不延续（sync 恢复时会纠正）
       store.deadline_at = d.deadline_at || 0
       store.remainMs = d.deadline_at ? Math.max(0, d.deadline_at - Date.now() - serverOffset) : 0
       rushTotal.value = d.winners || 1
@@ -367,6 +368,13 @@ function handleEvent(msg: WSMessage) {
       if (!store.iAmWinner) submitted.value = true // 非获答者不再提交
       break
   }
+}
+
+function resetRushState() {
+  store.my_rush_rank = 0
+  store.rushRank = 0
+  store.rushState = 'idle'
+  store.rush_winners = []
 }
 
 function resetQuestionUI() {
