@@ -10,37 +10,24 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/redis/go-redis/v9"
-	"gorm.io/driver/mysql"
-	"gorm.io/gorm"
-	gormlogger "gorm.io/gorm/logger"
 
 	"kaoshi/internal/config"
 	"kaoshi/internal/middleware"
+	"kaoshi/internal/store"
 )
 
 func main() {
 	cfg := config.Load()
 
-	// MySQL
-	db, err := gorm.Open(mysql.Open(cfg.MySQLDSN), &gorm.Config{
-		Logger: gormlogger.Default.LogMode(gormlogger.Warn),
-	})
+	db, err := store.NewDB(cfg.MySQLDSN)
 	if err != nil {
-		log.Fatalf("connect mysql failed: %v", err)
+		log.Fatalf("init mysql failed: %v", err)
 	}
-	sqlDB, _ := db.DB()
-	sqlDB.SetMaxOpenConns(50)
-	sqlDB.SetMaxIdleConns(10)
-	sqlDB.SetConnMaxLifetime(time.Hour)
-
-	// Redis
-	rdb := redis.NewClient(&redis.Options{Addr: cfg.RedisAddr, DB: cfg.RedisDB})
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err := rdb.Ping(ctx).Err(); err != nil {
-		log.Fatalf("connect redis failed: %v", err)
+	rdb, err := store.NewRedis(cfg.RedisAddr, cfg.RedisDB)
+	if err != nil {
+		log.Fatalf("init redis failed: %v", err)
 	}
+	_, _ = db, rdb // 阶段 2+ 使用
 
 	if os.Getenv("KAOSHI_ENV") == "dev" {
 		gin.SetMode(gin.DebugMode)
