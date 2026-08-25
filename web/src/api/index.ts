@@ -24,6 +24,9 @@ export function unwrap<T>(r: { data: Resp<T> }): T {
 /** 本地存储 key 常量 */
 export const LS = {
   adminToken: 'kaoshi_admin_token',
+  /** 全局登录态（用户名/密码登录后） */
+  userGlobalToken: 'kaoshi_user_token',
+  userNick: 'kaoshi_user_nick',
   userToken: (quizId: number | string) => `kaoshi_token_${quizId}`,
   userId: (quizId: number | string) => `kaoshi_uid_${quizId}`,
   nickname: (quizId: number | string) => `kaoshi_nick_${quizId}`,

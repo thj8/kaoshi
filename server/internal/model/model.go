@@ -2,11 +2,13 @@ package model
 
 import "time"
 
-// 用户（答题者，昵称即身份，无注册体系）
+// 用户（答题者，账号密码登录）
 type User struct {
-	ID        int64     `gorm:"primaryKey;autoIncrement" json:"id"`
-	Nickname  string    `gorm:"size:64;notNull;index" json:"nickname"`
-	CreatedAt time.Time `json:"created_at"`
+	ID           int64     `gorm:"primaryKey;autoIncrement" json:"id"`
+	Username     string    `gorm:"size:64;uniqueIndex" json:"username"`
+	PasswordHash string    `gorm:"size:128" json:"-"` // bcrypt，绝不下发
+	Nickname     string    `gorm:"size:64;notNull;index" json:"nickname"`
+	CreatedAt    time.Time `json:"created_at"`
 }
 
 // 答题状态（服务端状态机，客户端只读）

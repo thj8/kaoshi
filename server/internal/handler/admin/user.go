@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 
 	"kaoshi/internal/model"
@@ -14,6 +15,7 @@ import (
 // UserRow 用户列表行（含聚合统计）
 type UserRow struct {
 	ID         int64      `json:"id"`
+	Username   string     `json:"username"`
 	Nickname   string     `json:"nickname"`
 	CreatedAt  time.Time  `json:"created_at"`
 	QuizCount  int64      `json:"quiz_count"`   // 参加场次数
@@ -29,14 +31,14 @@ func (h *Handler) ListUsers(c *gin.Context) {
 	keyword := "%" + c.Query("keyword") + "%"
 
 	base := h.DB.Table("users").
-		Select(`users.id, users.nickname, users.created_at,
+		Select(`users.id, users.username, users.nickname, users.created_at,
 			COUNT(participants.id) AS quiz_count,
 			COALESCE(SUM(participants.score),0) AS total_score,
 			COALESCE(SUM(participants.correct_count),0) AS correct_cnt,
 			COALESCE(SUM(participants.wrong_count),0) AS wrong_cnt,
 			MAX(participants.joined_at) AS last_joined`).
 		Joins("LEFT JOIN participants ON participants.user_id = users.id").
-		Group("users.id, users.nickname, users.created_at")
+		Group("users.id, users.username, users.nickname, users.created_at")
 
 	var rows []struct {
 		model.User
@@ -48,7 +50,7 @@ func (h *Handler) ListUsers(c *gin.Context) {
 	}
 	q := base
 	if kw := c.Query("keyword"); kw != "" {
-		q = q.Where("users.nickname LIKE ?", keyword)
+		q = q.Where("users.nickname LIKE ? OR users.username LIKE ?", keyword, keyword)
 	}
 	q.Order("users.id DESC").Limit(500).Scan(&rows)
 
@@ -67,7 +69,7 @@ func (h *Handler) ListUsers(c *gin.Context) {
 	out := make([]UserRow, len(rows))
 	for i, r := range rows {
 		out[i] = UserRow{
-			ID: r.ID, Nickname: r.Nickname,
+			ID: r.ID, Username: r.Username, Nickname: r.Nickname,
 			CreatedAt:  r.CreatedAt,
 			QuizCount:  r.QuizCount,
 			TotalScore: r.TotalScore,
@@ -80,7 +82,37 @@ func (h *Handler) ListUsers(c *gin.Context) {
 	ok(c, out)
 }
 
-// UpdateUser PUT /api/admin/users/:id （改昵称）
+// CreateUser POST /api/admin/users（管理员新增用户）
+func (h *Handler) CreateUser(c *gin.Context) {
+	var req struct {
+		Username string `json:"username" binding:"required,min=2,max=32"`
+		Password string `json:"password" binding:"required,min=4,max=64"`
+		Nickname string `json:"nickname" binding:"required,min=1,max=32"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		fail(c, 400, "用户名2-32位、密码至少4位、昵称1-32位")
+		return
+	}
+	var cnt int64
+	h.DB.Model(&model.User{}).Where("username = ?", req.Username).Count(&cnt)
+	if cnt > 0 {
+		fail(c, 400, "用户名已存在")
+		return
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err != nil {
+		fail(c, 500, "系统错误")
+		return
+	}
+	user := model.User{Username: req.Username, PasswordHash: string(hash), Nickname: req.Nickname}
+	if err := h.DB.Create(&user).Error; err != nil {
+		fail(c, 500, "创建失败")
+		return
+	}
+	ok(c, gin.H{"id": user.ID, "username": user.Username, "nickname": user.Nickname})
+}
+
+// UpdateUser PUT /api/admin/users/:id （改昵称/重置密码，均可选）
 func (h *Handler) UpdateUser(c *gin.Context) {
 	var user model.User
 	if err := h.DB.First(&user, c.Param("id")).Error; err != nil {
@@ -88,22 +120,36 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 		return
 	}
 	var req struct {
-		Nickname string `json:"nickname" binding:"required,min=1,max=32"`
+		Nickname string `json:"nickname" binding:"omitempty,min=1,max=32"`
+		Password string `json:"password" binding:"omitempty,min=4,max=64"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		fail(c, 400, "昵称不合法")
+		fail(c, 400, "参数不合法")
 		return
 	}
-	// 检查昵称冲突
-	var cnt int64
-	h.DB.Model(&model.User{}).Where("nickname = ? AND id != ?", req.Nickname, user.ID).Count(&cnt)
-	if cnt > 0 {
-		fail(c, 400, "该昵称已被使用")
+	if req.Nickname == "" && req.Password == "" {
+		fail(c, 400, "请填写新昵称或新密码")
 		return
 	}
-	user.Nickname = req.Nickname
+	if req.Nickname != "" {
+		var cnt int64
+		h.DB.Model(&model.User{}).Where("nickname = ? AND id != ?", req.Nickname, user.ID).Count(&cnt)
+		if cnt > 0 {
+			fail(c, 400, "该昵称已被使用")
+			return
+		}
+		user.Nickname = req.Nickname
+	}
+	if req.Password != "" {
+		hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+		if err != nil {
+			fail(c, 500, "系统错误")
+			return
+		}
+		user.PasswordHash = string(hash)
+	}
 	h.DB.Save(&user)
-	ok(c, user)
+	ok(c, gin.H{"id": user.ID, "username": user.Username, "nickname": user.Nickname})
 }
 
 // DeleteUser DELETE /api/admin/users/:id （级联删除参与/答题/抢答记录）

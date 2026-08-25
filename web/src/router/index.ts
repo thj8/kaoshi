@@ -6,6 +6,7 @@ const router = createRouter({
   routes: [
     // 用户端
     { path: '/', redirect: '/join' },
+    { path: '/login', component: () => import('../user/LoginPage.vue') },
     { path: '/join', component: () => import('../user/JoinPage.vue') },
     { path: '/join/:id', component: () => import('../user/JoinPage.vue') },
     { path: '/quiz/:id', component: () => import('../user/QuizPage.vue') },

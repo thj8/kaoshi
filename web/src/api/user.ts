@@ -22,10 +22,42 @@ export interface JoinResp {
   user: { id: number; nickname: string }
 }
 
+export interface AuthUser {
+  id: number
+  username: string
+  nickname: string
+}
+
+/** 全局用户 token（登录态） */
+export function globalToken(): string {
+  return localStorage.getItem(LS.userGlobalToken) || ''
+}
+
 export const userApi = {
-  async join(nickname: string, quizId: number) {
+  async register(username: string, password: string, nickname: string) {
+    return unwrap<{ token: string; user: AuthUser }>(
+      await http.post('/api/auth/register', { username, password, nickname })
+    )
+  },
+  async login(username: string, password: string) {
+    return unwrap<{ token: string; user: AuthUser }>(
+      await http.post('/api/auth/login', { username, password })
+    )
+  },
+  async me() {
+    return unwrap<AuthUser>(
+      await http.get('/api/auth/me', { headers: { Authorization: `Bearer ${globalToken()}` } })
+    )
+  },
+  /** 已登录用户加入答题，换取答题作用域 token */
+  async joinQuiz(quizId: number) {
     return unwrap<JoinResp>(
-      await http.post('/api/join', { nickname, quiz_id: quizId })
+      await http.post('/api/join', { quiz_id: quizId }, { headers: { Authorization: `Bearer ${globalToken()}` } })
+    )
+  },
+  async quizBrief(quizId: number) {
+    return unwrap<{ id: number; title: string; description: string; status: string; participant_count: number }>(
+      await http.get(`/api/quiz/${quizId}/brief`)
     )
   },
   async quizInfo(quizId: number) {

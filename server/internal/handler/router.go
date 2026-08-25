@@ -19,7 +19,6 @@ import (
 // Register 组装全部路由
 func Register(r *gin.Engine, cfg *config.Config, db *gorm.DB, rdb *redis.Client) *engine.Engine {
 	adminH := admin.New(db, cfg.AdminUser, cfg.AdminPass)
-	apiH := api.New(db, cfg.JWTSecret)
 
 	r.GET("/api/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "time": time.Now().Unix()})
@@ -32,13 +31,18 @@ func Register(r *gin.Engine, cfg *config.Config, db *gorm.DB, rdb *redis.Client)
 	wsSrv.Snapshot = eng.Snapshot
 	r.GET("/ws", wsSrv.HandleWS)
 
-	// 用户端
-
+	// 公开接口（注册/登录/brief）
 	answerH := api.NewAnswer(db, eng)
-	r.POST("/api/join", apiH.Join)
+	apiH := api.New(db, cfg.JWTSecret)
+	r.POST("/api/auth/register", apiH.Register)
+	r.POST("/api/auth/login", apiH.Login)
 	r.GET("/api/quiz/:id/brief", apiH.QuizBrief)
+
+	// 用户端（需登录）
 	user := r.Group("/api", middleware.UserAuth())
 	{
+		user.GET("/auth/me", apiH.Me)
+		user.POST("/join", apiH.Join)
 		user.GET("/quiz/:id", apiH.QuizInfo)
 		user.GET("/quiz/:id/current-question", answerH.CurrentQuestion)
 		user.POST("/question/:id/answer", answerH.Submit)
@@ -53,6 +57,7 @@ func Register(r *gin.Engine, cfg *config.Config, db *gorm.DB, rdb *redis.Client)
 	authed := adm.Group("", middleware.AdminAuth())
 	{
 		authed.GET("/users", adminH.ListUsers)
+		authed.POST("/users", adminH.CreateUser)
 		authed.GET("/users/:id", adminH.UserDetail)
 		authed.PUT("/users/:id", adminH.UpdateUser)
 		authed.DELETE("/users/:id", adminH.DeleteUser)

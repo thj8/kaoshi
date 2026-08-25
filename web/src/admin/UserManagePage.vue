@@ -2,13 +2,16 @@
   <div class="page">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; gap: 12px">
       <h1>👥 用户管理</h1>
-      <input
-        v-model="keyword"
-        class="input"
-        style="max-width: 260px"
-        placeholder="搜索昵称..."
-        @input="debouncedLoad"
-      />
+      <div style="display: flex; gap: 10px">
+        <input
+          v-model="keyword"
+          class="input"
+          style="max-width: 220px"
+          placeholder="搜索用户名/昵称..."
+          @input="debouncedLoad"
+        />
+        <button class="btn btn-primary" @click="openCreate">＋ 新增用户</button>
+      </div>
     </div>
 
     <div class="card" style="overflow: auto">
@@ -16,6 +19,7 @@
         <thead>
           <tr>
             <th>ID</th>
+            <th>用户名</th>
             <th>昵称</th>
             <th>参加场次</th>
             <th>总得分</th>
@@ -36,9 +40,8 @@
           </tr>
           <tr v-for="u in users" :key="u.id">
             <td class="text-dim">{{ u.id }}</td>
-            <td>
-              <b>{{ u.nickname }}</b>
-            </td>
+            <td><code style="background: var(--card-2); padding: 2px 8px; border-radius: 6px">{{ u.username || '—' }}</code></td>
+            <td><b>{{ u.nickname }}</b></td>
             <td>{{ u.quiz_count }}</td>
             <td><b style="color: var(--warn)">{{ u.total_score }}</b></td>
             <td>{{ u.answer_cnt }}</td>
@@ -53,7 +56,7 @@
             <td>
               <div style="display: flex; gap: 6px">
                 <button class="btn btn-ghost" style="padding: 5px 10px; font-size: 13px" @click="openDetail(u)">明细</button>
-                <button class="btn btn-ghost" style="padding: 5px 10px; font-size: 13px" @click="openRename(u)">改名</button>
+                <button class="btn btn-ghost" style="padding: 5px 10px; font-size: 13px" @click="openEdit(u)">编辑</button>
                 <button class="btn btn-danger" style="padding: 5px 10px; font-size: 13px" @click="delUser(u)">删除</button>
               </div>
             </td>
@@ -62,15 +65,26 @@
       </table>
     </div>
 
-    <!-- 改名弹窗 -->
-    <div v-if="renameOpen" class="modal" @click.self="renameOpen = false">
+    <!-- 新增/编辑弹窗 -->
+    <div v-if="editing" class="modal" @click.self="editing = false">
       <div class="card modal-body">
-        <h3 style="margin-bottom: 14px">修改昵称（ID: {{ renaming?.id }}）</h3>
-        <input v-model="renameVal" class="input" maxlength="32" placeholder="新昵称" />
-        <p v-if="renameErr" style="color: var(--danger); font-size: 13px; margin-top: 8px">{{ renameErr }}</p>
+        <h3 style="margin-bottom: 14px">{{ editTarget ? `编辑用户 #${editTarget?.id}` : '新增用户' }}</h3>
+        <div v-if="!editTarget" style="margin-bottom: 12px">
+          <label class="flbl">用户名 *</label>
+          <input v-model="editForm.username" class="input" placeholder="登录用户名" />
+        </div>
+        <div style="margin-bottom: 12px">
+          <label class="flbl">昵称 {{ editTarget ? '' : '*' }}</label>
+          <input v-model="editForm.nickname" class="input" placeholder="排行榜展示昵称" />
+        </div>
+        <div style="margin-bottom: 4px">
+          <label class="flbl">{{ editTarget ? '新密码（留空则不修改）' : '密码 *' }}</label>
+          <input v-model="editForm.password" class="input" type="password" placeholder="至少 4 位" />
+        </div>
+        <p v-if="editErr" style="color: var(--danger); font-size: 13px; margin-top: 8px">{{ editErr }}</p>
         <div style="display: flex; gap: 10px; margin-top: 16px">
-          <button class="btn btn-ghost" style="flex: 1" @click="renameOpen = false">取消</button>
-          <button class="btn btn-primary" style="flex: 1" @click="doRename">保存</button>
+          <button class="btn btn-ghost" style="flex: 1" @click="editing = false">取消</button>
+          <button class="btn btn-primary" style="flex: 1" @click="saveUser">保存</button>
         </div>
       </div>
     </div>
@@ -97,11 +111,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { http, unwrap, LS } from '../api'
 
 interface UserRow {
   id: number
+  username: string
   nickname: string
   created_at: string
   quiz_count: number
@@ -126,10 +141,10 @@ interface PartRow {
 const users = ref<UserRow[]>([])
 const loading = ref(true)
 const keyword = ref('')
-const renaming = ref<UserRow | null>(null)
-const renameVal = ref('')
-const renameErr = ref('')
-const renameOpen = ref(false)
+const editing = ref(false)
+const editTarget = ref<UserRow | null>(null)
+const editForm = reactive({ username: '', nickname: '', password: '' })
+const editErr = ref('')
 const detail = ref<{ user: { id: number; nickname: string }; parts: PartRow[] } | null>(null)
 
 let debounceTimer: number | null = null
@@ -179,27 +194,45 @@ function statusText(s: string) {
   )[s] || s
 }
 
-function openRename(u: UserRow) {
-  renaming.value = u
-  renameVal.value = u.nickname
-  renameErr.value = ''
-  renameOpen.value = true
+function openCreate() {
+  editTarget.value = null
+  editForm.username = ''
+  editForm.nickname = ''
+  editForm.password = ''
+  editErr.value = ''
+  editing.value = true
 }
 
-async function doRename() {
-  if (!renaming.value || !renameVal.value.trim()) return
-  renameErr.value = ''
+function openEdit(u: UserRow) {
+  editTarget.value = u
+  editForm.username = u.username
+  editForm.nickname = u.nickname
+  editForm.password = ''
+  editErr.value = ''
+  editing.value = true
+}
+
+async function saveUser() {
+  editErr.value = ''
+  const h = { headers: { Authorization: `Bearer ${localStorage.getItem(LS.adminToken)}` } }
   try {
-    await http.put(
-      `/api/admin/users/${renaming.value.id}`,
-      { nickname: renameVal.value.trim() },
-      { headers: { Authorization: `Bearer ${localStorage.getItem(LS.adminToken)}` } }
-    )
-    renaming.value = null
-    renameOpen.value = false
+    if (editTarget.value) {
+      await http.put(
+        `/api/admin/users/${editTarget.value.id}`,
+        { nickname: editForm.nickname, password: editForm.password },
+        h
+      )
+    } else {
+      if (!editForm.username || !editForm.password || !editForm.nickname) {
+        editErr.value = '用户名/密码/昵称均必填'
+        return
+      }
+      await http.post('/api/admin/users', { ...editForm }, h)
+    }
+    editing.value = false
     load()
   } catch (e: any) {
-    renameErr.value = e?.response?.data?.msg || '修改失败'
+    editErr.value = e?.response?.data?.msg || '保存失败'
   }
 }
 
@@ -266,5 +299,11 @@ async function delUser(u: UserRow) {
   border-radius: 10px;
   margin-bottom: 8px;
   background: var(--bg-soft);
+}
+.flbl {
+  display: block;
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-bottom: 6px;
 }
 </style>

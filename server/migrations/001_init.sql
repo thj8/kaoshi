@@ -2,9 +2,12 @@
 -- 同时由 GORM AutoMigrate 兜底，此文件供 DBA 审阅 / 手动初始化
 
 CREATE TABLE IF NOT EXISTS `users` (
-  `id`         BIGINT AUTO_INCREMENT PRIMARY KEY,
-  `nickname`   VARCHAR(64) NOT NULL,
-  `created_at` DATETIME(3) DEFAULT CURRENT_TIMESTAMP(3),
+  `id`            BIGINT AUTO_INCREMENT PRIMARY KEY,
+  `username`      VARCHAR(64) DEFAULT NULL,
+  `password_hash` VARCHAR(128) DEFAULT '',
+  `nickname`      VARCHAR(64) NOT NULL,
+  `created_at`    DATETIME(3) DEFAULT CURRENT_TIMESTAMP(3),
+  UNIQUE KEY `uk_users_username` (`username`),
   KEY `idx_users_nickname` (`nickname`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
