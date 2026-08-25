@@ -1,4 +1,4 @@
-# 构建阶段注入 API 地址（容器内 nginx 代理或浏览器直连）
+# 构建阶段：API/WS 地址留空 = 使用相对路径（经 nginx 反代，任意 IP/域名访问均可）
 ARG VITE_API_BASE=""
 ARG VITE_WS_BASE=""
 
@@ -8,7 +8,7 @@ ARG VITE_API_BASE
 ARG VITE_WS_BASE
 ENV VITE_API_BASE=$VITE_API_BASE
 ENV VITE_WS_BASE=$VITE_WS_BASE
-COPY package.json package-lock.json ./
+COPY package.json package-lock.json .npmrc ./
 RUN npm ci
 COPY . .
 RUN npm run build

@@ -7,8 +7,8 @@
 线上实时答题系统：管理员创建答题活动、发布题目、控制流程；用户输入昵称进入、答题、抢答、查看实时排名。
 
 - 需求全文见 `task.md`
-- 开发计划与阶段划分见 `plan.md`
-- 当前进度：阶段 0（脚手架）已提交；阶段 1+ 按计划推进
+- 开发计划与阶段划分见 `plan.md`，使用说明见 `README.md`
+- 当前进度：阶段 0-4 ✅ 已完成并 E2E 验证；阶段 5+（抢答/统计/压测）待开发
 
 ## 仓库结构
 
@@ -57,6 +57,13 @@ npm run build               # 类型检查 + 构建（vue-tsc + vite）
 
 整体部署：`docker compose up -d --build`（首次会自动建库建表）。
 
+生产/测试运行（外部机器访问）：
+
+- 前端+反代入口：`http://<服务器IP>:13000`（nginx 已反代 `/api`、`/ws` 到后端，任意 IP/域名访问无需改配置）
+- 后端 API 直连：`http://<服务器IP>:18080`
+- 用户端 `/join`，管理端 `/admin/login`（默认 admin/admin123）
+- 容器日志：`docker compose logs -f server` / `web`；重置测试数据见 README「数据重置」
+
 ## 环境注意事项（重要，容易踩坑）
 
 - Go 安装在 `/usr/local/go/bin`，不在默认 PATH：`export PATH=$PATH:/usr/local/go/bin:~/go/bin`
@@ -64,7 +71,8 @@ npm run build               # 类型检查 + 构建（vue-tsc + vite）
 - 全局 `~/.npmrc` 指向内网 Nexus 且配置了 `omit=dev`（npm 不装 devDependencies，会导致 vite/vue-tsc 缺失）。
   **`web/.npmrc` 里的 `omit=` 覆盖项必须保留**，删掉它 `npm install` 会静默装不全
 - 本机 Node 24 / npm 11；`package.json` 中 typescript 固定 ~5.8，勿升级到 6.x（与 vue-tsc 冲突）
-- 宿主机端口均做了偏移避免冲突：MySQL 13306、Redis 16379、后端 18080、前端容器 13000
+- 宿主机端口均做了偏移避免冲突：MySQL 13306、Redis 16379、后端 18080、前端容器 13000（均绑 0.0.0.0，外部可直接访问）
+- **前端容器禁止写死 API 地址**：nginx 反代 `/api`、`/ws`，前端一律用相对路径（`VITE_API_BASE` 留空），否则外部 IP 访问会指向用户自己的 localhost
 
 ## 领域不变量（写代码必须遵守）
 
@@ -79,6 +87,8 @@ npm run build               # 类型检查 + 构建（vue-tsc + vite）
 ## 编码约定
 
 - Go：标准 Go 风格；handler 保持薄，业务逻辑放 `engine/`；错误用 `gin.H{"code":..., "msg":...}` 包装，code=0 成功
+- **锁纪律**：`Runtime.mu` 不可重入。持锁路径只能调 `xxxLocked` 内部方法（如 `getOptionsLocked`），对外方法（如 `GetOptions`）自带锁——历史上因重入死锁过一次
+- **GORM 零值陷阱**：`time.Time` 字段插入前必须显式赋值 `time.Now()`，否则 MySQL 拒收且错误被误判为唯一索引冲突
 - Vue：一律 `<script setup lang="ts">` 组合式 API；REST 调用走 `src/api/index.ts` 的 `http`/`unwrap`；token 存 localStorage（key 见 `LS` 常量）
 - 新增页面：用户端放 `src/user/`，管理端放 `src/admin/`，并在 `src/router/index.ts` 注册懒加载路由
 - 样式用全局 CSS 变量（`src/styles/main.css`），移动端适配必须考虑（现场手机答题）
@@ -87,3 +97,4 @@ npm run build               # 类型检查 + 构建（vue-tsc + vite）
 
 - 按阶段提交，消息格式：`<type>: 阶段N 描述`（如 `feat: 阶段4 普通答题流程与自动判分`），type 用 chore/feat/fix/docs
 - 提交信息用中文；不提交 node_modules、构建产物、二进制资源（见 .gitignore）
+- 修复类提交建议注明根因（如 `fix: 阶段4 修复运行时死锁（重入锁拆分）`）

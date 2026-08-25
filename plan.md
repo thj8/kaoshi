@@ -65,48 +65,41 @@ kaoshi/
 
 ## 三、开发阶段（按优先级，MVP 优先）
 
-### 阶段 0：项目脚手架（0.5 天）
-- [ ] docker-compose.yml：mysql 8 / redis 7 / server / web
-- [ ] Go 项目初始化（Gin + GORM + gorilla/websocket + go-redis + jwt）
-- [ ] Vite + Vue3 + TS + Pinia + Vue Router 初始化
-- [ ] 配置读取、日志、热重载（air / vite dev proxy）
+### 阶段 0：项目脚手架（0.5 天）✅
+- [x] docker-compose.yml：mysql 8 / redis 7 / server / web
+- [x] Go 项目初始化（Gin + GORM + gorilla/websocket + go-redis + jwt）
+- [x] Vite + Vue3 + TS + Pinia + Vue Router 初始化
+- [x] 配置读取、日志、热重载（air / vite dev proxy）
 
-### 阶段 1：数据库与核心模型（0.5 天）
-- [ ] 建表（按 task.md 二十四节）：
-  - `users(id, nickname, created_at)`
-  - `quizzes(id, title, description, status, mode, invite_code, 配置项..., total_time, created_at, started_at, ended_at)`
-  - `questions(id, quiz_id, type[single|multiple|judge], content, answer, analysis, score, required, sort, time_limit)`
-  - `question_options(id, question_id, label, content, sort)`
-  - `participants(id, quiz_id, user_id, score, correct_count, wrong_count, joined_at)`
-  - `answers(id, quiz_id, question_id, user_id, answer, is_correct, score, duration, submitted_at)`
-  - `rush_records(id, quiz_id, question_id, user_id, server_time, rank, score, created_at)`
-- [ ] GORM 模型 + 自动迁移 / SQL 文件
-- [ ] 管理员账号（简单 JWT 登录即可，不做复杂权限）
+### 阶段 1：数据库与核心模型（0.5 天）✅
+- [x] 建表（按 task.md 二十四节）：users / quizzes / questions / question_options / participants / answers / rush_records（均含唯一索引防重）
+- [x] GORM 模型 + AutoMigrate（含连接重试）+ SQL 迁移文件 migrations/001_init.sql
+- [x] 管理员账号（环境变量 admin/admin123，JWT）
 
-### 阶段 2：管理端基础 CRUD（1 天）
-- [ ] `POST /api/admin/quiz` 创建答题（生成邀请码、链接）
-- [ ] `PUT /api/admin/quiz/:id` 修改配置（答题模式/抢答开关/每题时间/是否显示答案等）
-- [ ] 题目 CRUD：单选 / 多选 / 判断 三种题型，分值/必答/答题时间/解析
-- [ ] 管理端页面：答题列表、创建表单、题目编辑器
-- [ ] 管理端登录 + JWT
+### 阶段 2：管理端基础 CRUD（1 天）✅
+- [x] `POST /api/admin/quiz` 创建答题（生成邀请码）；`PUT` 修改配置（开始后锁定）
+- [x] 题目 CRUD：单选/多选/判断三种题型，分值/必答/限时/解析（多选答案归一化排序）
+- [x] 管理端页面：登录、活动列表、创建表单、题目编辑器、配置编辑
+- [x] 管理端 JWT 鉴权
 
-### 阶段 3：用户进入 + WebSocket 基础设施（1 天）
-- [ ] `POST /api/join`：昵称 + 邀请码 → 返回 user token（JWT，含 user_id/quiz_id）
-- [ ] `GET /api/quiz/:id`：答题信息（名称/规则/参与人数/状态）
-- [ ] WS Hub：按 quiz_id 分房间，管理员房间 + 用户房间
-- [ ] WS 鉴权（连接时校验 JWT）、心跳 ping/pong
-- [ ] 断线自动重连 + **重连状态恢复**（服务端按 quiz 状态下发当前题目、剩余时间、个人得分）
-- [ ] 消息协议定义（对齐 task.md 二十二节的事件名）
+### 阶段 3：用户进入 + WebSocket 基础设施（1 天）✅
+- [x] `POST /api/join`：昵称 + 邀请码 → user token（含 user_id/quiz_id），幂等加入
+- [x] `GET /api/quiz/:id`：答题信息/参与人数/我的信息
+- [x] WS Hub：按 quiz_id 分房间（用户/管理员）；连接鉴权；ping/pong 心跳
+- [x] 断线重连：前端指数退避 + 重连即下发 `sync` 全量快照（状态/当前题/deadline/个人分）
+- [x] 消息协议定义（对齐 task.md 二十二节事件名，见 server/internal/ws/protocol.go）
 
-### 阶段 4：普通答题流程（MVP 核心，1.5 天）
-- [ ] 状态机：`WAITING → RUNNING → PAUSED → RUSHING/ANSWERING → REVEALING → FINISHED`
-- [ ] `POST /api/admin/quiz/:id/start | pause | next | previous | end | reveal`
-- [ ] 发布题目：`question:publish` 广播（**剥离答案**），题号、倒计时截止时间戳（服务器时间）
-- [ ] 服务器倒计时：`question:countdown` 定期广播剩余时间；到时自动收卷
-- [ ] `POST /api/question/:id/answer`：防重复提交（Redis SETNX / 唯一索引）、后端判分、多选全对才算对、必答/非必答逻辑
-- [ ] `answer:result` 单播个人结果（是否正确由 reveal 配置控制展示答案内容）
-- [ ] 管理员控制台：左题目列表 / 中当前题 / 右实时统计（参与、已答、未答、正确数、选项分布 A/B/C/D、组合答案分布）
-- [ ] 用户端答题页：顶部信息栏（题号/得分/倒计时）、选项大按钮、上一题/下一题/提交、移动端适配
+### 阶段 4：普通答题流程（MVP 核心，1.5 天）✅
+- [x] 状态机：WAITING/ANSWERING/PAUSED/REVEALING/FINISHED，服务端内存 + DB 持久化
+- [x] `start/pause/resume/next/previous/reveal/end` 控制端点 + WS 事件广播
+- [x] 发布题目：广播不含 answer/analysis；下发 deadline_at（服务器时间）
+- [x] 服务器倒计时：每秒广播剩余秒；到点强制收卷（必答记未答 `-`，非必答跳过；超时 1.5s 宽限后拒收）
+- [x] `POST /api/question/:id/answer`：防重复（查询+唯一索引双保险）、后端判分（多选全对）、计分、即时单播结果（不含正确答案）
+- [x] 公布答案 `answer:reveal`：按 show_answer/show_analysis 裁剪；管理端含选项分布
+- [x] 管理控制台：左题目列表/中当前题/右实时数据（参与/已答/正确/选项分布柱状）+ 底部控制按钮
+- [x] 用户答题页：顶部信息栏/大按钮选项/倒计时/移动端适配/断线提示/实时排行榜浮动面板
+- [x] 结束：activity:end 广播最终排行；`result` 成绩接口（分数/正确率/排名/用时）
+- [x] E2E 验证：答案零泄漏、防重复、超时收卷、暂停恢复、结束统计全部通过（本机+容器双验证）
 
 ### 阶段 5：抢答引擎（1 天）
 - [ ] 管理员 `rush/start` → 状态 RUSHING，广播 `rush:start`
@@ -176,12 +169,12 @@ ranking:update、statistics:update
 
 ## 五、里程碑
 
-| 里程碑 | 内容 | 验收标准 |
+| 里程碑 | 内容 | 验收标准 | 状态 |
 |---|---|---|
-| M1（阶段0-2） | 脚手架 + 建模 + 管理 CRUD | 能创建答题、录题 |
-| M2（阶段3-4） | 进入 + WS + 普通答题 | 完整走通普通模式，自动判分 |
-| M3（阶段5-6） | 抢答 + 排行榜 | 100 并发抢答第一名唯一，排行榜实时刷新 |
-| M4（阶段7-8） | 统计 + 加固 + 部署 | Compose 一键启动，全流程可用 |
+| M1（阶段0-2） | 脚手架 + 建模 + 管理 CRUD | 能创建答题、录题 | ✅ |
+| M2（阶段3-4） | 进入 + WS + 普通答题 | 完整走通普通模式，自动判分 | ✅ E2E+容器双验证 |
+| M3（阶段5-6） | 抢答 + 排行榜 | 100 并发抢答第一名唯一，排行榜实时刷新 | ⏳ |
+| M4（阶段7-8） | 统计 + 加固 + 部署 | Compose 一键启动，全流程可用 | ⏳ |
 
 预计总工时：约 7~8 个工作日。
 
