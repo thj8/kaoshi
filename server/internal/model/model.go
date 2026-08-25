@@ -51,12 +51,60 @@ type Quiz struct {
 	RushBonusScore  int `gorm:"notNull;default:5" json:"rush_bonus_score"`  // 抢答成功奖励分
 	RushWrongScore  int `gorm:"notNull;default:0" json:"rush_wrong_score"`  // 抢答题答错是否扣分（>0 开启，扣本题对应分值）
 
+	// 按题型计分（判分时覆盖题目自带分值；0 = 沿用题目自身分值）
+	ReqScoreSingle   int `gorm:"notNull;default:0" json:"req_score_single"`   // 必答·单选 分/题
+	ReqScoreMultiple int `gorm:"notNull;default:0" json:"req_score_multiple"` // 必答·多选 分/题
+	ReqScoreJudge    int `gorm:"notNull;default:0" json:"req_score_judge"`    // 必答·判断 分/题
+	RushScoreSingle   int `gorm:"notNull;default:0" json:"rush_score_single"`   // 抢答·单选 分/题
+	RushScoreMultiple int `gorm:"notNull;default:0" json:"rush_score_multiple"` // 抢答·多选 分/题
+	RushScoreJudge    int `gorm:"notNull;default:0" json:"rush_score_judge"`    // 抢答·判断 分/题
+	RushDeductSingle   int `gorm:"notNull;default:0" json:"rush_deduct_single"`   // 抢答·单选 答错扣分
+	RushDeductMultiple int `gorm:"notNull;default:0" json:"rush_deduct_multiple"` // 抢答·多选 答错扣分
+	RushDeductJudge    int `gorm:"notNull;default:0" json:"rush_deduct_judge"`    // 抢答·判断 答错扣分
+
 	CreatedAt time.Time  `json:"created_at"`
 	StartedAt *time.Time `json:"started_at"`
 	EndedAt   *time.Time `json:"ended_at"`
 
 	// 关联（不入库，仅查询用）
 	Questions []Question `gorm:"foreignKey:QuizID" json:"questions,omitempty"`
+}
+
+// TypeScore 按题型+是否必答取配置分值（0=未配置，沿用题目分值）
+func (q *Quiz) TypeScore(typ string, required bool) int {
+	if required {
+		switch typ {
+		case QuestionTypeSingle:
+			return q.ReqScoreSingle
+		case QuestionTypeMultiple:
+			return q.ReqScoreMultiple
+		case QuestionTypeJudge:
+			return q.ReqScoreJudge
+		}
+		return 0
+	}
+	switch typ {
+	case QuestionTypeSingle:
+		return q.RushScoreSingle
+	case QuestionTypeMultiple:
+		return q.RushScoreMultiple
+	case QuestionTypeJudge:
+		return q.RushScoreJudge
+	}
+	return 0
+}
+
+// RushDeduct 抢答答错按题型扣分（0=未配置）
+func (q *Quiz) RushDeduct(typ string) int {
+	switch typ {
+	case QuestionTypeSingle:
+		return q.RushDeductSingle
+	case QuestionTypeMultiple:
+		return q.RushDeductMultiple
+	case QuestionTypeJudge:
+		return q.RushDeductJudge
+	}
+	return 0
 }
 
 // 题型

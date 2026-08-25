@@ -58,6 +58,12 @@ const SINGLE = [ // [题干, 正确答案下标, 选项（中英混排）]
   ['最小权限原则 Least Privilege 指？', 2, ['只给管理员权限', '权限平均分配', '仅授予完成任务所需权限', '所有人只读']],
   ['社会工程学攻击 Social Engineering 的核心是？', 0, ['利用人的心理弱点', '破解加密算法', '伪造 IP 包', '劫持 DNS']],
   ['零日漏洞 Zero-day 指？', 3, ['元旦发现的漏洞', '影响为零的漏洞', '已修复的漏洞', '厂商尚无补丁的漏洞']],
+  ['ARP 欺骗攻击主要发生在？', 1, ['应用层', '局域网链路层', '传输层', '物理电缆']],
+  ['DNS 劫持导致的直接后果是？', 2, ['网速变慢', '电脑死机', '访问被引导到假网站', '硬盘被格式化']],
+  ['证书 Certificate 过期后浏览器会？', 0, ['提示风险/拒绝访问', '自动续期', '无任何变化', '加速访问']],
+  ['“蜜罐” Honeypot 的用途是？', 1, ['存储蜂蜜数据', '诱捕分析攻击者', '备份数据库', '加速网络']],
+  ['VPN 的核心安全作用是？', 2, ['免费上网', '隐藏 IP 用于攻击', '建立加密隧道', '替代防火墙']],
+  ['密码学中“盐” Salt 的作用是？', 3, ['增加密码长度', '加快哈希速度', '压缩存储空间', '抵御彩虹表破解']],
 ]
 const MULTI = [ // [题干, 正确答案下标数组, 选项（中英混排）]
   ['以下哪些属于常见的 Web 安全漏洞？', [0, 1, 3], ['SQL 注入 Injection', 'XSS 跨站脚本', 'TCP 三次握手', 'CSRF 伪造请求']],
@@ -82,6 +88,10 @@ const quiz = (await j('POST', '/api/admin/quiz', {
   description: '必答题 40 分（单选 2 分/题、多选 4 分/题，答错不扣分）；抢答题 60 分（单选 3 分/题、多选 6 分/题，答错扣本题分值）',
   per_question_time: 30, rush_enabled: true, rush_time: 10, rush_answer_time: 20,
   rush_winner_count: 1, rush_bonus_score: 0, rush_wrong_score: 1,
+  // 按题型计分（判分时覆盖题目分值）
+  req_score_single: 2, req_score_multiple: 4, req_score_judge: 3,
+  rush_score_single: 3, rush_score_multiple: 6, rush_score_judge: 3,
+  rush_deduct_single: 3, rush_deduct_multiple: 6, rush_deduct_judge: 3,
   show_answer: true, show_analysis: true, show_ranking: true,
 }, at)).data
 if (!quiz?.id) throw new Error('建赛失败')
@@ -101,15 +111,15 @@ const mk = async (type, pool, idx, score, required, timeLimit) => {
   if (r.code !== 0) throw new Error('建题失败 #' + sort + ': ' + r.msg)
 }
 
-// 必答：8 单选×2 + 6 多选×4 = 40 分（答错不扣分）
-for (let i = 0; i < 8; i++) await mk('single', SINGLE, i, 2, true, 30)
-for (let i = 0; i < 6; i++) await mk('multiple', MULTI, i, 4, true, 40)
-// 抢答：6 单选×3 + 7 多选×6 = 60 分（答错扣本题分值）
-for (let i = 8; i < 14; i++) await mk('single', SINGLE, i, 3, false, 30)
-for (let i = 6; i < 13; i++) await mk('multiple', MULTI, i, 6, false, 40)
+// 必答 15 题：10 单选×2 + 5 多选×4 = 40 分（答错不扣分）
+for (let i = 0; i < 10; i++) await mk('single', SINGLE, i, 2, true, 30)
+for (let i = 0; i < 5; i++) await mk('multiple', MULTI, i, 4, true, 40)
+// 抢答 15 题：10 单选×3 + 5 多选×6 = 60 分（答错各扣对应分值：单选3、多选6）
+for (let i = 10; i < 20; i++) await mk('single', SINGLE, i, 3, false, 30)
+for (let i = 5; i < 10; i++) await mk('multiple', MULTI, i, 6, false, 40)
 
-console.log(`✅ 已生成「计分规则验证赛」#${quiz.id}（27 题，共 100 分）`)
-console.log('   必答题 40 分：8 单选×2 + 6 多选×4（答错不扣分）')
-console.log('   抢答题 60 分：6 单选×3 + 7 多选×6（答错扣本题分值；rush_wrong_score=1 表示开启扣分）')
+console.log(`✅ 已生成「计分规则验证赛」#${quiz.id}（30 题，共 100 分）`)
+console.log('   必答题 15 题 40 分：10 单选×2 + 5 多选×4（答错不扣分）')
+console.log('   抢答题 15 题 60 分：10 单选×3 + 5 多选×6（答错各扣对应分值：单选扣3、多选扣6）')
 console.log('   选手：player1-3 / player12345')
 console.log(`   流程：控制台 ▶开始 → 必答题直接作答；到抢答题时点 ⚡开始抢答 → 抢到者作答（答错倒扣）`)

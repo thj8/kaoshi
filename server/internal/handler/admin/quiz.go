@@ -82,6 +82,16 @@ type quizReq struct {
 	RushAnswerTime  int    `json:"rush_answer_time" binding:"min=0,max=600"`
 	RushBonusScore  int    `json:"rush_bonus_score" binding:"min=0"`
 	RushWrongScore  int    `json:"rush_wrong_score" binding:"min=0"`
+
+	ReqScoreSingle     int `json:"req_score_single" binding:"min=0"`
+	ReqScoreMultiple   int `json:"req_score_multiple" binding:"min=0"`
+	ReqScoreJudge      int `json:"req_score_judge" binding:"min=0"`
+	RushScoreSingle    int `json:"rush_score_single" binding:"min=0"`
+	RushScoreMultiple  int `json:"rush_score_multiple" binding:"min=0"`
+	RushScoreJudge     int `json:"rush_score_judge" binding:"min=0"`
+	RushDeductSingle   int `json:"rush_deduct_single" binding:"min=0"`
+	RushDeductMultiple int `json:"rush_deduct_multiple" binding:"min=0"`
+	RushDeductJudge    int `json:"rush_deduct_judge" binding:"min=0"`
 }
 
 func (h *Handler) CreateQuiz(c *gin.Context) {
@@ -106,6 +116,15 @@ func (h *Handler) CreateQuiz(c *gin.Context) {
 		RushAnswerTime:  orDefault(req.RushAnswerTime, 20),
 		RushBonusScore:  orDefault(req.RushBonusScore, 5),
 		RushWrongScore:  req.RushWrongScore,
+		ReqScoreSingle:     req.ReqScoreSingle,
+		ReqScoreMultiple:   req.ReqScoreMultiple,
+		ReqScoreJudge:      req.ReqScoreJudge,
+		RushScoreSingle:    req.RushScoreSingle,
+		RushScoreMultiple:  req.RushScoreMultiple,
+		RushScoreJudge:     req.RushScoreJudge,
+		RushDeductSingle:   req.RushDeductSingle,
+		RushDeductMultiple: req.RushDeductMultiple,
+		RushDeductJudge:    req.RushDeductJudge,
 	}
 	if err := h.DB.Create(&quiz).Error; err != nil {
 		fail(c, 500, "保存失败")
@@ -143,6 +162,15 @@ func (h *Handler) UpdateQuiz(c *gin.Context) {
 	quiz.RushAnswerTime = orDefault(req.RushAnswerTime, quiz.RushAnswerTime)
 	quiz.RushBonusScore = orDefault(req.RushBonusScore, quiz.RushBonusScore)
 	quiz.RushWrongScore = req.RushWrongScore
+	quiz.ReqScoreSingle = req.ReqScoreSingle
+	quiz.ReqScoreMultiple = req.ReqScoreMultiple
+	quiz.ReqScoreJudge = req.ReqScoreJudge
+	quiz.RushScoreSingle = req.RushScoreSingle
+	quiz.RushScoreMultiple = req.RushScoreMultiple
+	quiz.RushScoreJudge = req.RushScoreJudge
+	quiz.RushDeductSingle = req.RushDeductSingle
+	quiz.RushDeductMultiple = req.RushDeductMultiple
+	quiz.RushDeductJudge = req.RushDeductJudge
 	h.DB.Save(&quiz)
 	ok(c, quiz)
 }

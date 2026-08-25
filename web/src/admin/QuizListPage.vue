@@ -92,7 +92,28 @@
               <div class="frow"><label>抢答窗口（秒）</label><input v-model.number="form.rush_time" class="input" type="number" min="3" max="120" /></div>
               <div class="frow"><label>抢答后答题时间（秒）</label><input v-model.number="form.rush_answer_time" class="input" type="number" min="5" max="600" /></div>
               <div class="frow"><label>抢答奖励分</label><input v-model.number="form.rush_bonus_score" class="input" type="number" min="0" /></div>
-              <div class="frow"><label>抢答答错扣分</label><input v-model.number="form.rush_wrong_score" class="input" type="number" min="0" /></div>
+              <div class="frow"><label>抢答答错总开关（>0 开启）</label><input v-model.number="form.rush_wrong_score" class="input" type="number" min="0" /></div>
+        <div class="frow"><label>必答计分（0=用题目分值）</label>
+          <span style="display:flex;gap:6px">
+            <input v-model.number="form.req_score_single" class="input" type="number" min="0" placeholder="单选" style="width:70px" />
+            <input v-model.number="form.req_score_multiple" class="input" type="number" min="0" placeholder="多选" style="width:70px" />
+            <input v-model.number="form.req_score_judge" class="input" type="number" min="0" placeholder="判断" style="width:70px" />
+          </span>
+        </div>
+        <div class="frow"><label>抢答计分（0=用题目分值）</label>
+          <span style="display:flex;gap:6px">
+            <input v-model.number="form.rush_score_single" class="input" type="number" min="0" placeholder="单选" style="width:70px" />
+            <input v-model.number="form.rush_score_multiple" class="input" type="number" min="0" placeholder="多选" style="width:70px" />
+            <input v-model.number="form.rush_score_judge" class="input" type="number" min="0" placeholder="判断" style="width:70px" />
+          </span>
+        </div>
+        <div class="frow"><label>抢答答错扣分（0=不扣）</label>
+          <span style="display:flex;gap:6px">
+            <input v-model.number="form.rush_deduct_single" class="input" type="number" min="0" placeholder="单选" style="width:70px" />
+            <input v-model.number="form.rush_deduct_multiple" class="input" type="number" min="0" placeholder="多选" style="width:70px" />
+            <input v-model.number="form.rush_deduct_judge" class="input" type="number" min="0" placeholder="判断" style="width:70px" />
+          </span>
+        </div>
             </div>
           </template>
           <p v-if="err" style="color: var(--danger); font-size: 14px">{{ err }}</p>
@@ -133,6 +154,9 @@ const form = reactive<Partial<Quiz>>({
   rush_answer_time: 20,
   rush_bonus_score: 5,
   rush_wrong_score: 0,
+  req_score_single: 0, req_score_multiple: 0, req_score_judge: 0,
+  rush_score_single: 0, rush_score_multiple: 0, rush_score_judge: 0,
+  rush_deduct_single: 0, rush_deduct_multiple: 0, rush_deduct_judge: 0,
 })
 
 onMounted(load)
