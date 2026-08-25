@@ -476,7 +476,7 @@ func (e *Engine) SubmitAnswer(quizID, questionID, userID int64, answer string, d
 	if isCorrect {
 		score = q.Score
 	} else if isRush && rt.quiz.RushWrongScore > 0 {
-		score = -rt.quiz.RushWrongScore // 抢答题答错扣分
+		score = -q.Score // 抢答题答错扣本题对应分值（RushWrongScore>0 即开启扣分）
 	}
 
 	rec := model.Answer{
