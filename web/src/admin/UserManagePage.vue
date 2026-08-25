@@ -1,17 +1,15 @@
 <template>
   <div class="page">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; gap: 12px">
-      <h1>👥 用户管理</h1>
-      <div style="display: flex; gap: 10px">
-        <input
-          v-model="keyword"
-          class="input"
-          style="max-width: 220px"
-          placeholder="搜索用户名/昵称..."
-          @input="debouncedLoad"
-        />
-        <button class="btn btn-primary" @click="openCreate">＋ 新增用户</button>
-      </div>
+    <h1 style="margin-bottom: 14px">👥 用户管理</h1>
+    <div style="display: flex; gap: 10px; margin-bottom: 16px">
+      <input
+        v-model="keyword"
+        class="input"
+        style="max-width: 280px"
+        placeholder="搜索用户名/昵称..."
+        @input="debouncedLoad"
+      />
+      <button class="btn btn-primary" @click="openCreate">＋ 新增用户</button>
     </div>
 
     <div class="card" style="overflow: auto">
@@ -21,38 +19,22 @@
             <th>ID</th>
             <th>用户名</th>
             <th>昵称</th>
-            <th>参加场次</th>
-            <th>总得分</th>
-            <th>答题数</th>
-            <th>答对 / 答错</th>
             <th>正确率</th>
-            <th>最近参与</th>
-            <th>注册时间</th>
             <th style="width: 150px">操作</th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="loading">
-            <td colspan="10" class="text-dim" style="text-align: center; padding: 30px">加载中...</td>
+            <td colspan="5" class="text-dim" style="text-align: center; padding: 30px">加载中...</td>
           </tr>
           <tr v-else-if="users.length === 0">
-            <td colspan="10" class="text-dim" style="text-align: center; padding: 30px">暂无用户</td>
+            <td colspan="5" class="text-dim" style="text-align: center; padding: 30px">暂无用户</td>
           </tr>
           <tr v-for="u in users" :key="u.id">
             <td class="text-dim">{{ u.id }}</td>
             <td><code style="background: var(--card-2); padding: 2px 8px; border-radius: 6px">{{ u.username || '—' }}</code></td>
             <td><b>{{ u.nickname }}</b></td>
-            <td>{{ u.quiz_count }}</td>
-            <td><b style="color: var(--warn)">{{ u.total_score }}</b></td>
-            <td>{{ u.answer_cnt }}</td>
-            <td>
-              <span style="color: var(--success)">{{ u.correct_cnt }}</span>
-              <span class="text-dim"> / </span>
-              <span style="color: var(--danger)">{{ u.wrong_cnt }}</span>
-            </td>
             <td>{{ correctRate(u) }}%</td>
-            <td class="text-dim">{{ fmtTime(u.last_joined) }}</td>
-            <td class="text-dim">{{ fmtTime(u.created_at) }}</td>
             <td>
               <div style="display: flex; gap: 6px">
                 <button class="btn btn-ghost" style="padding: 5px 10px; font-size: 13px" @click="openDetail(u)">明细</button>
