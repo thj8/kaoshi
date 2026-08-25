@@ -35,7 +35,7 @@ export function globalToken(): string {
 
 export const userApi = {
   async quizList(): Promise<{ items: { id: number; title: string; description: string; mode: string; participant_count: number }[] }> {
-    return unwrap(await http.get('/api/quizzes'))
+    return unwrap(await http.get('/api/quizzes', { headers: { Authorization: `Bearer ${globalToken()}` } }))
   },
   async login(username: string, password: string) {
     return unwrap<{ token: string; user: AuthUser }>(
