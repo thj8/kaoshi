@@ -5,10 +5,13 @@
         <h1>选择答题活动</h1>
         <p class="sub">挑选一场活动开始作答</p>
       </div>
-      <button class="account" @click="$router.push('/login')">
-        <span class="avatar">{{ nick.slice(0, 1) }}</span>
-        <span class="nick">{{ nick }}</span>
-      </button>
+      <div class="account-box">
+        <button class="account" @click="$router.push('/login')">
+          <span class="avatar">{{ nick.slice(0, 1) }}</span>
+          <span class="nick">{{ nick }}</span>
+        </button>
+        <button class="logout" @click="logout" title="退出登录">退出</button>
+      </div>
     </header>
 
     <!-- 进入中 -->
@@ -103,6 +106,13 @@ onMounted(async () => {
   }
 })
 
+function logout() {
+  Object.keys(localStorage)
+    .filter(k => k.startsWith('kaoshi_token_') || k === LS.userGlobalToken || k === LS.userNick)
+    .forEach(k => localStorage.removeItem(k))
+  router.replace('/login')
+}
+
 async function go(quizId: number) {
   if (!quizId || quizId <= 0) return
   joining.value = true
@@ -147,6 +157,27 @@ h1 {
   margin-top: 6px;
   color: var(--text-dim);
   font-size: 15px;
+}
+.account-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.logout {
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text-dim);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+  font-family: inherit;
+}
+.logout:hover {
+  color: var(--danger);
+  border-color: var(--danger);
 }
 .account {
   display: flex;
