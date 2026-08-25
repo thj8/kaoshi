@@ -123,9 +123,9 @@
 
       <!-- 公布答案反馈 -->
       <div v-if="revealed && store.quiz?.show_answer" class="reveal-box">
-        <div class="feedback" :class="lastResult?.is_correct ? 'good' : 'bad'">
+        <div class="feedback" :class="myReveal.is_correct ? 'good' : 'bad'">
           正确答案：<b>{{ reveal?.correct_answer }}</b>
-          <span v-if="lastResult"> · 你的答案：<b :class="lastResult.is_correct ? 't-good' : 't-bad'">{{ lastResult.answer }}</b></span>
+          <span v-if="myReveal.answered"> · 你的答案：<b :class="myReveal.is_correct ? 't-good' : 't-bad'">{{ myReveal.answer }}</b>（{{ myReveal.score }} 分）</span>
         </div>
         <p v-if="reveal?.analysis && store.quiz?.show_analysis" class="text-dim" style="font-size: 13px; margin-top: 8px">
           💡 {{ reveal.analysis }}
@@ -204,6 +204,17 @@ const rushTotal = ref(1)
 let serverOffset = 0
 
 const remainSec = computed(() => Math.ceil(store.remainMs / 1000))
+
+/** 公布答案时的个人反馈：优先服务端 reveal 携带的数据（刷新/未提交也有），回退本地 lastResult */
+const myReveal = computed(() => {
+  const rv = reveal.value
+  if (rv && rv.my_answer !== undefined) {
+    return { answered: rv.my_answer !== '-', answer: rv.my_answer, score: rv.my_score ?? 0, is_correct: !!rv.is_correct }
+  }
+  const lr = lastResult.value
+  if (lr) return { answered: true, answer: lr.answer, score: lr.score, is_correct: lr.is_correct }
+  return { answered: false, answer: '', score: 0, is_correct: false }
+})
 
 /** 抢答窗口已结束且我不是获答者：锁定作答 */
 const rushLocked = computed(

@@ -103,11 +103,15 @@ type AnswerResultData struct {
 }
 
 type RevealData struct {
-	QuestionID  int64         `json:"question_id"`
-	CorrectAns  string        `json:"correct_answer"`
-	Analysis    string        `json:"analysis,omitempty"`
+	QuestionID   int64          `json:"question_id"`
+	CorrectAns   string         `json:"correct_answer"`
+	Analysis     string         `json:"analysis,omitempty"`
 	Distribution map[string]int `json:"distribution,omitempty"` // 选项分布（管理端用）
-	Stats       *RevealStats `json:"stats,omitempty"`
+	Stats        *RevealStats   `json:"stats,omitempty"`
+	// 用户端个人答题反馈（answer:reveal 即时展示用）
+	MyAnswer  string `json:"my_answer,omitempty"`  // 本人提交的（可能为"-"）
+	MyScore   int    `json:"my_score,omitempty"`   // 本题得分
+	IsCorrect bool   `json:"is_correct,omitempty"` // 是否答对
 }
 
 type RevealStats struct {
