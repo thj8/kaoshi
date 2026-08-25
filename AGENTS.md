@@ -89,6 +89,7 @@ npm run build               # 类型检查 + 构建（vue-tsc + vite）
 - Go：标准 Go 风格；handler 保持薄，业务逻辑放 `engine/`；错误用 `gin.H{"code":..., "msg":...}` 包装，code=0 成功
 - **锁纪律**：`Runtime.mu` 不可重入。持锁路径只能调 `xxxLocked` 内部方法（如 `getOptionsLocked`），对外方法（如 `GetOptions`）自带锁——历史上因重入死锁过一次
 - **GORM 零值陷阱**：`time.Time` 字段插入前必须显式赋值 `time.Now()`，否则 MySQL 拒收且错误被误判为唯一索引冲突
+- **GORM bool 陷阱**：模型 bool 字段禁止加 `default` 标签——显式 false 是零值，GORM 会改写字段为默认值（default:true 时显式 false 变 true，极隐蔽）
 - Vue：一律 `<script setup lang="ts">` 组合式 API；REST 调用走 `src/api/index.ts` 的 `http`/`unwrap`；token 存 localStorage（key 见 `LS` 常量）
 - 新增页面：用户端放 `src/user/`，管理端放 `src/admin/`，并在 `src/router/index.ts` 注册懒加载路由
 - 样式用全局 CSS 变量（`src/styles/main.css`），移动端适配必须考虑（现场手机答题）

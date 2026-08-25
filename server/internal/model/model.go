@@ -35,13 +35,13 @@ type Quiz struct {
 	Mode        string `gorm:"size:16;notNull;default:normal" json:"mode"`
 	InviteCode  string `gorm:"size:16;notNull;uniqueIndex" json:"invite_code"`
 
-	// 全局配置
-	TotalTime       int  `gorm:"notNull;default:0" json:"total_time"`         // 总答题时间（秒，0=不限）
+	// 全局配置（bool 不加 gorm default 标签：GORM 对零值+default 会改写字段，导致显式 false 失效）
+	TotalTime       int  `gorm:"notNull" json:"total_time"`        // 总答题时间（秒，0=不限）
 	PerQuestionTime int  `gorm:"notNull;default:30" json:"per_question_time"` // 每题默认答题时间（秒）
-	RushEnabled     bool `gorm:"notNull;default:false" json:"rush_enabled"`   // 是否开启抢答
-	ShowAnswer      bool `gorm:"notNull;default:true" json:"show_answer"`     // 是否显示正确答案
-	ShowAnalysis    bool `gorm:"notNull;default:true" json:"show_analysis"`   // 是否显示解析
-	ShowRanking     bool `gorm:"notNull;default:true" json:"show_ranking"`    // 是否显示排行榜
+	RushEnabled     bool `gorm:"notNull" json:"rush_enabled"`      // 是否开启抢答
+	ShowAnswer      bool `gorm:"notNull" json:"show_answer"`       // 是否显示正确答案
+	ShowAnalysis    bool `gorm:"notNull" json:"show_analysis"`     // 是否显示解析
+	ShowRanking     bool `gorm:"notNull" json:"show_ranking"`      // 是否显示排行榜
 
 	// 抢答配置
 	RushWinnerCount int `gorm:"notNull;default:1" json:"rush_winner_count"` // 每题抢答名额
@@ -74,7 +74,7 @@ type Question struct {
 	Answer    string `gorm:"size:16;notNull" json:"-"` // 序列化时剥离，绝不下发
 	Analysis  string `gorm:"size:1024" json:"-"`
 	Score     int    `gorm:"notNull;default:10" json:"score"`
-	Required  bool   `gorm:"notNull;default:true" json:"required"`
+	Required  bool   `gorm:"notNull" json:"required"`
 	Sort      int    `gorm:"notNull;index:idx_quiz_sort" json:"sort"`
 	TimeLimit int    `gorm:"notNull;default:0" json:"time_limit"` // 本题专属倒计时（秒），0=用 quiz 全局配置
 
