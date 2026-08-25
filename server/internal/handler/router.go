@@ -33,10 +33,15 @@ func Register(r *gin.Engine, cfg *config.Config, db *gorm.DB, rdb *redis.Client)
 	r.GET("/ws", wsSrv.HandleWS)
 
 	// 用户端
+	answerH := api.NewAnswer(db, eng)
 	r.POST("/api/join", apiH.Join)
 	user := r.Group("/api", middleware.UserAuth())
 	{
 		user.GET("/quiz/:id", apiH.QuizInfo)
+		user.GET("/quiz/:id/current-question", answerH.CurrentQuestion)
+		user.POST("/question/:id/answer", answerH.Submit)
+		user.GET("/quiz/:id/ranking", answerH.Ranking)
+		user.GET("/quiz/:id/result", answerH.Result)
 	}
 
 	// 管理端
@@ -54,6 +59,20 @@ func Register(r *gin.Engine, cfg *config.Config, db *gorm.DB, rdb *redis.Client)
 		authed.GET("/quiz/:id/questions", adminH.ListQuestions)
 		authed.PUT("/question/:qid", adminH.UpdateQuestion)
 		authed.DELETE("/question/:qid", adminH.DeleteQuestion)
+	}
+
+	// 管理流程控制
+	ctrl := admin.NewControl(db, eng)
+	ctrlGroup := adm.Group("", middleware.AdminAuth())
+	{
+		ctrlGroup.POST("/quiz/:id/start", ctrl.Start)
+		ctrlGroup.POST("/quiz/:id/pause", ctrl.Pause)
+		ctrlGroup.POST("/quiz/:id/resume", ctrl.Resume)
+		ctrlGroup.POST("/quiz/:id/next", ctrl.Next)
+		ctrlGroup.POST("/quiz/:id/previous", ctrl.Previous)
+		ctrlGroup.POST("/quiz/:id/reveal", ctrl.Reveal)
+		ctrlGroup.POST("/quiz/:id/end", ctrl.End)
+		ctrlGroup.GET("/quiz/:id/statistics", ctrl.Statistics)
 	}
 	return eng
 }

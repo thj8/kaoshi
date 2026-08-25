@@ -1,4 +1,5 @@
 import { http, unwrap, LS } from './index'
+import type { AnswerResultData, RankingData } from '../ws/types'
 
 export interface QuizInfo {
   quiz: {
@@ -36,4 +37,32 @@ export const userApi = {
   quizToken(quizId: number) {
     return localStorage.getItem(LS.userToken(quizId)) || ''
   },
+  async submitAnswer(questionId: number, answer: string, durationMs: number) {
+    const quizId = quizIdFromPath()
+    const token = localStorage.getItem(LS.userToken(quizId)) || ''
+    return unwrap<AnswerResultData>(
+      await http.post(
+        `/api/question/${questionId}/answer`,
+        { answer, duration: durationMs },
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+    )
+  },
+  async ranking(quizId: number) {
+    const token = localStorage.getItem(LS.userToken(quizId)) || ''
+    return unwrap<{ visible: boolean; items?: RankingData['items']; mine_rank: number }>(
+      await http.get(`/api/quiz/${quizId}/ranking`, { headers: { Authorization: `Bearer ${token}` } })
+    )
+  },
+  async result(quizId: number) {
+    const token = localStorage.getItem(LS.userToken(quizId)) || ''
+    return unwrap<Record<string, any>>(
+      await http.get(`/api/quiz/${quizId}/result`, { headers: { Authorization: `Bearer ${token}` } })
+    )
+  },
+}
+
+function quizIdFromPath(): number {
+  const m = location.pathname.match(/\/quiz\/(\d+)/)
+  return m ? Number(m[1]) : 0
 }

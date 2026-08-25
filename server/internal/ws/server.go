@@ -80,6 +80,11 @@ func (s *Server) HandleWS(c *gin.Context) {
 
 	// 连接建立后立即下发全量状态（覆盖断线重连/刷新恢复）
 	if s.Snapshot != nil {
+		if claims.Role == auth.RoleAdmin {
+			c2 := *claims
+			c2.QuizID = quizID
+			claims = &c2
+		}
 		if snap, err := s.Snapshot(claims); err == nil && snap != nil {
 			snap.Quiz.ID = quizID
 			client.Emit(EventSync, snap)

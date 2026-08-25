@@ -23,17 +23,20 @@ type Engine struct {
 // Runtime 单场答题的内存运行时（可从 DB 重建）
 type Runtime struct {
 	mu        sync.Mutex
+	engine    *Engine
 	quiz      *model.Quiz
 	questions []model.Question // 按 sort 排序
 	options   map[int64][]model.QuestionOption
 
-	curIndex int       // 当前题下标（0-based，-1=未发布）
-	deadline int64     // 当前题截止毫秒时间戳（0=无）
+	curIndex int        // 当前题下标（0-based，-1=未发布）
+	deadline int64      // 当前题截止毫秒时间戳（0=无）
 	timer    *SyncTimer // 倒计时器
-	pausedRemain int64 // 暂停时剩余毫秒
+	tick     *ticker    // 每秒广播
+	pausedRemain int64  // 暂停时剩余毫秒
 
 	// 抢答窗口
 	rushDeadline int64
+	tickRush     *ticker
 }
 
 func New(db *gorm.DB, rdb *redis.Client, hub *ws.Hub) *Engine {
@@ -57,6 +60,7 @@ func (e *Engine) Get(quizID int64) (*Runtime, error) {
 		return nil, err
 	}
 	rt = &Runtime{
+		engine:    e,
 		quiz:      &quiz,
 		questions: questions,
 		options:   map[int64][]model.QuestionOption{},
