@@ -183,16 +183,12 @@ func (e *Engine) Reveal(quizID int64) error {
 			base.Analysis = q.Analysis
 		}
 	}
-	var pids []int64
-	e.DB.Model(&model.Participant{}).Where("quiz_id = ?", quizID).Pluck("user_id", &pids)
-	for _, uid := range pids {
-		var ans model.Answer
-		e.DB.Where("quiz_id = ? AND question_id = ? AND user_id = ?", quizID, q.ID, uid).First(&ans)
+	var answers []model.Answer
+	e.DB.Where("quiz_id = ? AND question_id = ?", quizID, q.ID).Find(&answers)
+	for _, ans := range answers {
 		mine := *base // 浅拷贝，逐人填个人字段
-		mine.MyAnswer = ans.Answer
-		mine.MyScore = ans.Score
-		mine.IsCorrect = ans.IsCorrect
-		e.Hub.SendToUser(quizID, uid, ws.EventAnswerReveal, &mine)
+		mine.MyAnswer, mine.MyScore, mine.IsCorrect = ans.Answer, ans.Score, ans.IsCorrect
+		e.Hub.SendToUser(quizID, ans.UserID, ws.EventAnswerReveal, &mine)
 	}
 
 	// 管理端：始终完整（含分布）

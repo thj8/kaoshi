@@ -84,6 +84,7 @@ async function load() {
   loading.value = true
   try {
     st.value = await adminApi.statistics(quizId)
+    if (st.value.status === 'FINISHED') clearInterval(timer) // 已定局，停轮询
   } finally {
     loading.value = false
   }
