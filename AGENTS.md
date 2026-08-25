@@ -98,6 +98,15 @@ npm run build               # 类型检查 + 构建（vue-tsc + vite）
 
 ## Git 约定
 
+- **提交前必须全量跑 E2E（硬性约束）**：任何代码修改在 `git commit` 前必须依次跑通，全部通过才能提交：
+
+  ```bash
+  node scripts/security_e2e.mjs && node scripts/hardening_e2e.mjs
+  ```
+
+  用例清单与详细说明见 `TESTCASES.md`。任一断言失败：先修复再提交，禁止跳过或只跑其中一个。
+- **分支工作流（重要）**：每个阶段一个分支开发，完成后再合并回 main
+
 - **分支工作流（重要）**：每个阶段一个分支开发，完成后再合并回 main
   1. 开发前：`git checkout main && git pull` → `git checkout -b feat/stageN-简短英文`（如 `feat/stage5-rush`、`feat/stage7-stats`；修复用 `fix/xxx`）
   2. 阶段内可多次提交，消息：`<type>: 阶段N 描述`，type 用 chore/feat/fix/docs
