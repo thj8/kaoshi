@@ -171,20 +171,29 @@ func (e *Engine) Reveal(quizID int64) error {
 	rt.quiz.Status = model.QuizStatusRevealing
 	e.DB.Model(&model.Quiz{}).Where("id = ?", quizID).Update("status", model.QuizStatusRevealing)
 
+	// 用户端（按配置裁剪答案/解析；个人答案/得分按参与者单播）
 	stats, dist := e.questionStats(quizID, q.ID)
-
-	// 用户端（按配置裁剪答案/解析）
-	userData := &ws.RevealData{
-		QuestionID:  q.ID,
-		Stats:       stats,
+	base := &ws.RevealData{
+		QuestionID: q.ID,
+		Stats:      stats,
 	}
 	if rt.quiz.ShowAnswer {
-		userData.CorrectAns = q.Answer
+		base.CorrectAns = q.Answer
 		if rt.quiz.ShowAnalysis {
-			userData.Analysis = q.Analysis
+			base.Analysis = q.Analysis
 		}
 	}
-	e.Hub.BroadcastUsers(quizID, ws.EventAnswerReveal, userData)
+	var pids []int64
+	e.DB.Model(&model.Participant{}).Where("quiz_id = ?", quizID).Pluck("user_id", &pids)
+	for _, uid := range pids {
+		var ans model.Answer
+		e.DB.Where("quiz_id = ? AND question_id = ? AND user_id = ?", quizID, q.ID, uid).First(&ans)
+		mine := *base // 浅拷贝，逐人填个人字段
+		mine.MyAnswer = ans.Answer
+		mine.MyScore = ans.Score
+		mine.IsCorrect = ans.IsCorrect
+		e.Hub.SendToUser(quizID, uid, ws.EventAnswerReveal, &mine)
+	}
 
 	// 管理端：始终完整（含分布）
 	adminData := &ws.RevealData{
@@ -195,6 +204,11 @@ func (e *Engine) Reveal(quizID int64) error {
 		Distribution: dist,
 	}
 	e.Hub.Broadcast(quizID, ws.EventAnswerReveal, adminData)
+
+	// 公布答案后分数已定，实时更新排行榜
+	if rt.quiz.ShowRanking {
+		e.Hub.Broadcast(quizID, ws.EventRankingUpdate, &ws.RankingData{Items: e.buildRanking(quizID, 50)})
+	}
 	return nil
 }
 

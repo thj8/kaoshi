@@ -86,6 +86,10 @@ export interface RevealData {
   correct_answer: string
   analysis?: string
   stats?: { total: number; correct: number; wrong: number }
+  /** 用户端个人反馈（服务端随 answer:reveal 下发） */
+  my_answer?: string // 本人提交的（"-"=未答）
+  my_score?: number
+  is_correct?: boolean
 }
 
 export interface RankingItem {

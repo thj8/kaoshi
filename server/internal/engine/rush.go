@@ -153,12 +153,12 @@ func (e *Engine) rushEndLocked(rt *Runtime) error {
 		AnswerDeadlineAt: answerDeadline,
 		ServerNow:        nowMilli(),
 	})
-	if len(winners) > 0 && rt.quiz.ShowRanking {
-		e.Hub.Broadcast(quizID, ws.EventRankingUpdate, &ws.RankingData{Items: e.buildRanking(quizID, 50)})
+		if rt.quiz.ShowRanking {
+			e.Hub.Broadcast(quizID, ws.EventRankingUpdate, &ws.RankingData{Items: e.buildRanking(quizID, 50)})
+		}
+		e.broadcastStatistics(quizID, q.ID)
+		return nil
 	}
-	e.broadcastStatistics(quizID, q.ID)
-	return nil
-}
 
 // ---------- 用户端：抢答提交 ----------
 
