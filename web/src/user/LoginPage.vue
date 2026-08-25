@@ -1,26 +1,26 @@
 <template>
-  <div class="page" style="max-width: 440px; padding-top: 9vh">
-    <div class="card" style="padding: 32px">
-      <h1 style="font-size: 22px; margin-bottom: 4px">答题系统</h1>
-      <p class="text-dim" style="margin-bottom: 22px">账号由管理员创建，凭用户名密码登录</p>
-
+  <div class="auth-wrap">
+    <div class="auth-box">
+      <div class="mark">答</div>
+      <h1>理论答题系统</h1>
+      <p class="sub">使用管理员分配的账号登录</p>
 
       <form @submit.prevent="submit">
-        <div style="margin-bottom: 14px">
-          <input v-model="username" class="input" placeholder="用户名" autocomplete="username" />
+        <div class="field">
+          <label>用户名</label>
+          <input v-model="username" class="input" placeholder="请输入用户名" autocomplete="username" />
         </div>
-        <div style="margin-bottom: 14px">
-          <input v-model="password" class="input" type="password" placeholder="密码" autocomplete="current-password" />
+        <div class="field">
+          <label>密码</label>
+          <input v-model="password" class="input" type="password" placeholder="请输入密码" autocomplete="current-password" />
         </div>
-        <p v-if="err" style="color: var(--danger); margin-bottom: 12px; font-size: 14px">{{ err }}</p>
-        <button class="btn btn-primary" style="width: 100%" :disabled="loading">
-          {{ loading ? '请稍候...' : '登 录' }}
+        <p v-if="err" class="err">{{ err }}</p>
+        <button class="btn btn-primary submit" :disabled="loading">
+          {{ loading ? '登录中…' : '登录' }}
         </button>
       </form>
 
-      <p v-if="redirectHint" class="text-dim" style="margin-top: 14px; font-size: 13px; text-align: center">
-        登录后将自动进入：{{ redirectHint }}
-      </p>
+      <p v-if="redirectHint" class="hint">登录后将自动进入{{ redirectHint }}</p>
     </div>
   </div>
 </template>
@@ -79,3 +79,70 @@ if (globalToken()) {
   router.replace(redirect)
 }
 </script>
+
+<style scoped>
+.auth-wrap {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  background:
+    radial-gradient(1000px 500px at 50% -10%, rgba(0, 113, 227, 0.08), transparent 70%),
+    var(--bg);
+}
+.auth-box {
+  width: 360px;
+  max-width: 100%;
+  text-align: center;
+}
+.mark {
+  width: 72px;
+  height: 72px;
+  margin: 0 auto 20px;
+  border-radius: 20px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 32px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 12px 28px rgba(0, 113, 227, 0.28);
+}
+h1 {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.sub {
+  margin: 8px 0 30px;
+  color: var(--text-dim);
+  font-size: 15px;
+}
+.field {
+  text-align: left;
+  margin-bottom: 16px;
+}
+.field label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+.err {
+  color: var(--danger);
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+.submit {
+  width: 100%;
+  margin-top: 6px;
+}
+.hint {
+  margin-top: 18px;
+  color: var(--text-dim);
+  font-size: 13px;
+}
+</style>

@@ -2,14 +2,15 @@
   <div class="admin-shell">
     <aside class="sidebar">
       <div class="brand" @click="$router.push('/admin')">
+        <span class="brand-icon">🎯</span>
         <span class="brand-name">答题管理后台</span>
       </div>
       <nav class="nav">
         <router-link to="/admin" class="nav-item" exact-active-class="active">
-<span>答题管理</span>
+          <span class="nav-icon">📋</span><span>答题管理</span>
         </router-link>
         <router-link to="/admin/users" class="nav-item" active-class="active">
-<span>用户管理</span>
+          <span class="nav-icon">👥</span><span>用户管理</span>
         </router-link>
       </nav>
       <div class="sidebar-foot">
@@ -60,6 +61,9 @@ function logout() {
   cursor: pointer;
   border-bottom: 1px solid var(--border);
 }
+.brand-icon {
+  font-size: 20px;
+}
 .nav {
   flex: 1;
   padding: 12px 10px;
@@ -84,8 +88,11 @@ function logout() {
 }
 .nav-item.active {
   color: #fff;
-  background: var(--primary);
+  background: linear-gradient(135deg, var(--primary), var(--primary-strong));
   font-weight: 600;
+}
+.nav-icon {
+  font-size: 16px;
 }
 .sidebar-foot {
   padding: 12px;

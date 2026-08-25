@@ -406,7 +406,7 @@ async function copyLink() {
 .modal {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.32);
+  background: rgba(5, 8, 18, 0.72);
   display: flex;
   align-items: center;
   justify-content: center;

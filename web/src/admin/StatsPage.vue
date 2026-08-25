@@ -1,7 +1,7 @@
 <template>
   <div>
     <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px">
-      <h2 style="margin: 0">答题统计</h2>
+      <h2 style="margin: 0">📊 答题统计</h2>
       <span class="tag" :class="st?.status?.toLowerCase()">{{ statusText }}</span>
       <span style="flex: 1"></span>
       <button class="btn btn-ghost" @click="back">← 返回</button>
@@ -46,7 +46,7 @@
 
       <!-- 排行榜 -->
       <div class="card" style="margin-top: 16px">
-        <h3 style="margin: 0 0 12px">排行榜</h3>
+        <h3 style="margin: 0 0 12px">🏆 排行榜</h3>
         <table v-if="st.ranking.length" class="table">
           <thead><tr><th>排名</th><th style="text-align: left">昵称</th><th>分数</th><th>答对</th><th>答错</th></tr></thead>
           <tbody>
@@ -103,14 +103,14 @@ onUnmounted(() => clearInterval(timer))
 
 <style scoped>
 .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; }
-.stat-card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; text-align: center; }
+.stat-card { background: var(--bg-card, #1a2233); border: 1px solid var(--border, #2a3550); border-radius: 10px; padding: 16px; text-align: center; }
 .stat-card .num { font-size: 26px; font-weight: 700; }
 .stat-card .lbl { font-size: 12px; opacity: 0.6; margin-top: 4px; }
 .table { width: 100%; border-collapse: collapse; font-size: 14px; }
-.table th, .table td { padding: 8px 10px; text-align: center; border-bottom: 1px solid var(--border); }
+.table th, .table td { padding: 8px 10px; text-align: center; border-bottom: 1px solid var(--border, #2a3550); }
 .table th { font-size: 12px; opacity: 0.6; font-weight: normal; }
-.rate-bar { display: inline-block; vertical-align: middle; width: 80px; height: 8px; border-radius: 4px; background: var(--border); margin-right: 6px; overflow: hidden; }
-.rate-fill { height: 100%; background: var(--success); border-radius: 4px; }
-.rate-fill.low { background: #ff3b30; }
-b.top1 { color: #b8860b; } b.top2 { color: #6e6e73; } b.top3 { color: #a05a2c; }
+.rate-bar { display: inline-block; vertical-align: middle; width: 80px; height: 8px; border-radius: 4px; background: var(--border, #2a3550); margin-right: 6px; overflow: hidden; }
+.rate-fill { height: 100%; background: #4caf7d; border-radius: 4px; }
+.rate-fill.low { background: #e05656; }
+b.top1 { color: #ffd700; } b.top2 { color: #c0c0c0; } b.top3 { color: #cd7f32; }
 </style>

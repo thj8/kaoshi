@@ -1,56 +1,57 @@
 <template>
-  <div class="page" style="max-width: 520px; padding-top: 8vh">
-    <div class="card" style="padding: 28px">
-      <template v-if="joining">
-        <div class="pulse-dot"></div>
-        <p style="margin-top: 14px; text-align: center">正在进入答题...</p>
-      </template>
+  <div class="join-wrap">
+    <header class="join-head">
+      <div>
+        <h1>选择答题活动</h1>
+        <p class="sub">挑选一场活动开始作答</p>
+      </div>
+      <button class="account" @click="$router.push('/login')">
+        <span class="avatar">{{ nick.slice(0, 1) }}</span>
+        <span class="nick">{{ nick }}</span>
+      </button>
+    </header>
 
-      <template v-else>
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px">
-          <h1 style="font-size: 20px">加入答题</h1>
-          <button class="btn btn-ghost" style="padding: 6px 12px; font-size: 13px" @click="$router.push('/login')">
-            切换账号（{{ nick }}）
-          </button>
-        </div>
-
-        <p v-if="err" style="color: var(--danger); margin-bottom: 14px; font-size: 14px">{{ err }}</p>
-
-        <template v-if="linkBrief">
-          <!-- 深链 /join/<id>：展示指定活动确认进入 -->
-          <p style="font-size: 16px; font-weight: 700; margin-bottom: 4px">{{ linkBrief.title }}</p>
-          <p class="text-dim" style="font-size: 13px; margin-bottom: 18px">{{ linkBrief.description || '' }}</p>
-        </template>
-
-        <div v-if="linkBrief" style="display: flex; flex-direction: column; gap: 10px">
-          <button class="btn btn-primary" @click="go(linkBrief.id)">进入答题</button>
-        </div>
-
-        <template v-else>
-          <!-- 活动列表（可加入 = WAITING） -->
-          <p v-if="loadingList" class="text-dim" style="font-size: 14px">加载中...</p>
-          <template v-else-if="quizzes.length">
-            <div
-              v-for="q in quizzes"
-              :key="q.id"
-              class="quiz-item"
-              @click="go(q.id)"
-            >
-              <div>
-                <div style="font-weight: 700; font-size: 15px">{{ q.title }}</div>
-                <div class="text-dim" style="font-size: 12px; margin-top: 4px">
-                  #{{ q.id }} · {{ q.mode === 'rush' ? '抢答模式' : '普通模式' }} · {{ q.participant_count }} 人已加入
-                </div>
-              </div>
-              <span class="enter-arrow">进入 →</span>
-            </div>
-          </template>
-          <p v-else class="text-dim" style="font-size: 14px; text-align: center; padding: 18px 0">
-            暂无可加入的答题活动，请等待管理员创建并开启
-          </p>
-        </template>
-      </template>
+    <!-- 进入中 -->
+    <div v-if="joining" class="card joining">
+      <div class="spinner"></div>
+      <p>正在进入答题…</p>
     </div>
+
+    <template v-else>
+      <p v-if="err" class="err">{{ err }}</p>
+
+      <!-- 深链 /join/<id>：确认进入 -->
+      <div v-if="linkBrief" class="card hero" @click="go(linkBrief.id)">
+        <span class="hero-tag">受邀活动</span>
+        <h2>{{ linkBrief.title }}</h2>
+        <p class="desc">{{ linkBrief.description || '' }}</p>
+        <button class="btn btn-primary go">进入答题</button>
+      </div>
+
+      <!-- 活动列表（可加入 = WAITING） -->
+      <template v-else>
+        <p v-if="loadingList" class="empty">加载中…</p>
+        <template v-else-if="quizzes.length">
+          <div v-for="q in quizzes" :key="q.id" class="quiz-row" @click="go(q.id)">
+            <div class="row-main">
+              <div class="row-title">{{ q.title }}</div>
+              <div class="row-meta">
+                <span class="m-item">#{{ q.id }}</span>
+                <span class="dot"></span>
+                <span>{{ q.mode === 'rush' ? '抢答模式' : '普通模式' }}</span>
+                <span class="dot"></span>
+                <span>{{ q.participant_count }} 人已加入</span>
+              </div>
+            </div>
+            <span class="chev">›</span>
+          </div>
+        </template>
+        <div v-else class="card empty-card">
+          <p>暂无可加入的答题活动</p>
+          <p class="empty-sub">请等待管理员创建并开启</p>
+        </div>
+      </template>
+    </template>
   </div>
 </template>
 
@@ -126,39 +127,166 @@ async function go(quizId: number) {
 </script>
 
 <style scoped>
-.pulse-dot {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: var(--primary);
+.join-wrap {
+  max-width: 560px;
   margin: 0 auto;
-  animation: pulse 1.4s ease-in-out infinite;
+  padding: 8vh 16px 48px;
 }
-@keyframes pulse {
-  0%, 100% { opacity: 0.35; transform: scale(0.85); }
-  50% { opacity: 1; transform: scale(1.15); }
+.join-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 28px;
 }
-.quiz-item {
+h1 {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.sub {
+  margin-top: 6px;
+  color: var(--text-dim);
+  font-size: 15px;
+}
+.account {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 14px 16px;
-  border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
-  border-radius: 12px;
-  background: var(--bg-soft, rgba(255, 255, 255, 0.04));
+  gap: 8px;
+  border: none;
+  background: var(--card);
+  border-radius: 999px;
+  padding: 5px 12px 5px 5px;
   cursor: pointer;
-  transition: border-color 0.15s, transform 0.15s;
+  box-shadow: var(--shadow);
+  font-family: inherit;
 }
-.quiz-item:hover {
-  border-color: var(--primary);
+.avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.nick {
+  font-size: 13px;
+  font-weight: 600;
+  max-width: 96px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.err {
+  color: var(--danger);
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+.joining {
+  text-align: center;
+  padding: 56px 20px;
+  color: var(--text-dim);
+}
+.spinner {
+  width: 26px;
+  height: 26px;
+  margin: 0 auto 14px;
+  border-radius: 50%;
+  border: 3px solid var(--card-2);
+  border-top-color: var(--primary);
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.hero {
+  text-align: center;
+  padding: 36px 24px;
+  cursor: pointer;
+}
+.hero-tag {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--primary);
+  background: rgba(0, 113, 227, 0.1);
+  border-radius: 999px;
+  padding: 4px 12px;
+  margin-bottom: 14px;
+}
+.hero h2 {
+  font-size: 22px;
+  font-weight: 700;
+}
+.hero .desc {
+  color: var(--text-dim);
+  font-size: 14px;
+  margin: 8px 0 22px;
+}
+.go {
+  min-width: 200px;
+}
+.quiz-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px 18px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+  transition: transform 0.12s ease;
+}
+.quiz-row:hover {
   transform: translateY(-1px);
 }
-.quiz-item + .quiz-item {
-  margin-top: 10px;
+.quiz-row:active {
+  transform: scale(0.985);
 }
-.enter-arrow {
-  font-size: 13px;
-  color: var(--primary);
+.row-main {
+  flex: 1;
+  min-width: 0;
+}
+.row-title {
+  font-size: 16px;
+  font-weight: 650;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
+}
+.row-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 5px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.dot {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--text-dim);
+  opacity: 0.6;
+}
+.chev {
+  font-size: 24px;
+  color: var(--text-dim);
+  font-weight: 300;
+  line-height: 1;
+}
+.empty-card {
+  text-align: center;
+  padding: 48px 20px;
+}
+.empty-sub {
+  color: var(--text-dim);
+  font-size: 13px;
+  margin-top: 6px;
 }
 </style>

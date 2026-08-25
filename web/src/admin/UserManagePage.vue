@@ -1,7 +1,7 @@
 <template>
   <div class="page">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; gap: 12px">
-      <h1>用户管理</h1>
+      <h1>👥 用户管理</h1>
       <div style="display: flex; gap: 10px">
         <input
           v-model="keyword"
@@ -274,12 +274,12 @@ async function delUser(u: UserRow) {
   white-space: nowrap;
 }
 .utable tr:hover td {
-  background: rgba(0, 113, 227, 0.05);
+  background: rgba(108, 123, 255, 0.05);
 }
 .modal {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.32);
+  background: rgba(5, 8, 18, 0.72);
   display: flex;
   align-items: center;
   justify-content: center;
