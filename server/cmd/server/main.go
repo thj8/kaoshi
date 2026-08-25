@@ -40,7 +40,7 @@ func main() {
 	r := gin.New()
 	r.Use(gin.Recovery(), middleware.CORS(cfg.OriginAllow))
 
-	router.Register(r, cfg, db)
+	router.Register(r, cfg, db, rdb)
 
 	srv := &http.Server{Addr: cfg.Addr, Handler: r}
 	go func() {
