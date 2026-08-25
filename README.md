@@ -9,8 +9,11 @@
 ## 快速开始（Docker 一键部署）
 
 ```bash
+cp .env.example .env   # 把 .env 里的密码改成随机值（不入库，git 已忽略）
 docker compose up -d --build
 ```
+
+所有凭据（MySQL/Redis 密码、JWT 密钥、管理端密码）都在 `.env` 中，compose 自动读取。
 
 启动 4 个容器：MySQL 8 / Redis 7 / Go 后端 / Vue3 前端(nginx)，首次启动自动建库建表。
 
@@ -35,7 +38,6 @@ docker compose up -d --build
 
 ## 测试流程（5 分钟跑通）
 
-> 快速造数：`python3 scripts/gen_testdata.py http://<服务器IP>:13000`
 > 自动创建「网络安全知识竞赛」：单选/多选/判断爻 20 题，每种题型前 10 题必答、后 10 题抢答（共 60 题，含解析），并打印邀请码
 
 1. **管理端** `http://IP:13000/admin/login` 登录 → 创建答题（普通模式）→ 添加几道题（单选/多选/判断）
@@ -45,6 +47,12 @@ docker compose up -d --build
 5. 用户提交答案 → 控制台实时看到 已答/正确/选项分布
 6. `📢 公布答案` → 用户端显示正确答案与解析（受配置开关控制）
 7. `下一题` … 最后一题后 `■ 结束答题` → 用户端显示成绩 + 最终排行榜
+
+## 文档
+
+- **docs/API.md** —— REST / WebSocket 完整接口文档（含 curl 快速验证）
+- TESTCASES.md —— E2E 测试用例清单（提交前必须全绿）
+- `node scripts/seed.mjs` —— 清库并生成演示数据（3 个选手账号 + 2 场答题）
 
 ## 技术栈
 
