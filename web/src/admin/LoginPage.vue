@@ -1,7 +1,7 @@
 <template>
   <div class="page" style="max-width: 420px; padding-top: 10vh">
     <div class="card" style="padding: 32px">
-      <h1 style="font-size: 22px; margin-bottom: 4px">🎯 答题管理端</h1>
+      <h1 style="font-size: 22px; margin-bottom: 4px">答题管理端</h1>
       <p class="text-dim" style="margin-bottom: 24px">实时答题系统 · 管理控制台</p>
       <form @submit.prevent="doLogin">
         <div style="margin-bottom: 14px">

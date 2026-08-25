@@ -8,7 +8,7 @@
 
       <template v-else>
         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px">
-          <h1 style="font-size: 20px">📝 加入答题</h1>
+          <h1 style="font-size: 20px">加入答题</h1>
           <button class="btn btn-ghost" style="padding: 6px 12px; font-size: 13px" @click="$router.push('/login')">
             切换账号（{{ nick }}）
           </button>

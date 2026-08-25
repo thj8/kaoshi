@@ -1,7 +1,7 @@
 <template>
   <div class="page">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px">
-      <h1>📋 答题活动管理</h1>
+      <h1>答题活动管理</h1>
       <button class="btn btn-primary" @click="showCreate = true">＋ 创建答题</button>
     </div>
 
@@ -224,7 +224,7 @@ function statusText(s: string) {
 .modal {
   position: fixed;
   inset: 0;
-  background: rgba(5, 8, 18, 0.72);
+  background: rgba(0, 0, 0, 0.32);
   display: flex;
   align-items: center;
   justify-content: center;

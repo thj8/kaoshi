@@ -1,7 +1,7 @@
 <template>
   <div class="page" style="max-width: 440px; padding-top: 9vh">
     <div class="card" style="padding: 32px">
-      <h1 style="font-size: 22px; margin-bottom: 4px">📝 答题系统</h1>
+      <h1 style="font-size: 22px; margin-bottom: 4px">答题系统</h1>
       <p class="text-dim" style="margin-bottom: 22px">账号由管理员创建，凭用户名密码登录</p>
 
 
@@ -79,29 +79,3 @@ if (globalToken()) {
   router.replace(redirect)
 }
 </script>
-
-<style scoped>
-.tabs {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 20px;
-  background: var(--bg-soft);
-  border-radius: 10px;
-  padding: 4px;
-}
-.tab {
-  flex: 1;
-  padding: 9px;
-  border: none;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--text-dim);
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.tab.on {
-  background: linear-gradient(135deg, var(--primary), var(--primary-strong));
-  color: #fff;
-}
-</style>

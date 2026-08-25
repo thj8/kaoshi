@@ -9,7 +9,7 @@
         </span>
       </div>
       <div class="topbar-right">
-        <span class="score-chip">🏅 {{ store.me?.score ?? 0 }} 分</span>
+        <span class="score-chip">{{ store.me?.score ?? 0 }} 分</span>
         <span v-if="remainSec > 0" class="countdown" :class="{ urgent: remainSec <= 5 }">{{ remainSec }}</span>
       </div>
     </div>
@@ -52,7 +52,7 @@
       </p>
 
       <div v-if="ranking.length" style="margin-top: 20px; text-align: left; width: 100%">
-        <h3 style="margin-bottom: 10px">🏆 最终排行榜</h3>
+        <h3 style="margin-bottom: 10px">最终排行榜</h3>
         <div v-for="r in ranking.slice(0, 10)" :key="r.user_id" class="rank-row" :class="{ me: r.user_id === store.me?.user_id }">
           <span class="rk" :class="'top' + Math.min(r.rank, 3)">{{ r.rank }}</span>
           <span style="flex: 1">{{ r.nickname }}<span v-if="r.user_id === store.me?.user_id" class="text-dim">（我）</span></span>
@@ -158,7 +158,7 @@
       🏆
     </div>
     <div v-if="showRanking" class="card rank-panel">
-      <h3 style="margin-bottom: 10px">🏆 实时排行榜</h3>
+      <h3 style="margin-bottom: 10px">实时排行榜</h3>
       <div v-for="r in ranking" :key="r.user_id" class="rank-row" :class="{ me: r.user_id === store.me?.user_id }">
         <span class="rk" :class="'top' + Math.min(r.rank, 3)">{{ r.rank }}</span>
         <span style="flex: 1">{{ r.nickname }}</span>
@@ -498,19 +498,19 @@ function formatDur(sec: number) {
   align-items: center;
   justify-content: center;
   border-radius: 12px;
-  background: linear-gradient(135deg, var(--primary), var(--primary-strong));
+  background: var(--primary);
   font-size: 20px;
   font-weight: 800;
 }
 .countdown.urgent {
-  background: linear-gradient(135deg, #ff7062, #e0404f);
+  background: #ff3b30;
   animation: blink 0.6s ease-in-out infinite;
 }
 @keyframes blink {
   50% { transform: scale(1.08); }
 }
 .offline-tip {
-  background: rgba(255, 176, 32, 0.12);
+  background: rgba(255, 149, 0, 0.12);
   border: 1px solid var(--warn);
   color: var(--warn);
   border-radius: 10px;
@@ -566,7 +566,7 @@ function formatDur(sec: number) {
   padding: 34px 20px;
   border: none;
   border-radius: 18px;
-  background: linear-gradient(135deg, #ff7062, #e0404f);
+  background: #ff3b30;
   color: #fff;
   font-size: 26px;
   font-weight: 900;
@@ -575,7 +575,7 @@ function formatDur(sec: number) {
   align-items: center;
   gap: 6px;
   cursor: pointer;
-  box-shadow: 0 8px 28px rgba(224, 64, 79, 0.4);
+  box-shadow: 0 8px 28px rgba(255, 59, 48, 0.4);
   animation: rushPulse 1.2s ease-in-out infinite;
 }
 .rush-btn:active {
@@ -587,8 +587,8 @@ function formatDur(sec: number) {
   opacity: 0.9;
 }
 @keyframes rushPulse {
-  0%, 100% { box-shadow: 0 8px 28px rgba(224, 64, 79, 0.35); }
-  50% { box-shadow: 0 8px 36px rgba(224, 64, 79, 0.65); transform: scale(1.015); }
+  0%, 100% { box-shadow: 0 8px 28px rgba(255, 59, 48, 0.35); }
+  50% { box-shadow: 0 8px 36px rgba(255, 59, 48, 0.65); transform: scale(1.015); }
 }
 .rush-state {
   border-radius: 16px;
@@ -606,12 +606,12 @@ function formatDur(sec: number) {
   opacity: 0.85;
 }
 .rush-state.won {
-  background: rgba(46, 204, 143, 0.14);
+  background: rgba(52, 199, 89, 0.14);
   color: var(--success);
   border: 1px solid var(--success);
 }
 .rush-state.lost {
-  background: rgba(255, 93, 108, 0.12);
+  background: rgba(255, 59, 48, 0.12);
   color: var(--danger);
   border: 1px solid var(--danger);
 }
@@ -663,15 +663,15 @@ function formatDur(sec: number) {
 }
 .opt.sel {
   border-color: var(--primary);
-  background: rgba(108, 123, 255, 0.14);
+  background: rgba(0, 113, 227, 0.14);
 }
 .opt.correct {
   border-color: var(--success);
-  background: rgba(46, 204, 143, 0.14);
+  background: rgba(52, 199, 89, 0.14);
 }
 .opt.wrong {
   border-color: var(--danger);
-  background: rgba(255, 93, 108, 0.14);
+  background: rgba(255, 59, 48, 0.14);
 }
 .opt.disabled {
   cursor: not-allowed;
@@ -698,11 +698,11 @@ function formatDur(sec: number) {
   font-weight: 600;
 }
 .feedback.good {
-  background: rgba(46, 204, 143, 0.14);
+  background: rgba(52, 199, 89, 0.14);
   color: var(--success);
 }
 .feedback.bad {
-  background: rgba(255, 93, 108, 0.12);
+  background: rgba(255, 59, 48, 0.12);
   color: var(--danger);
 }
 .reveal-box {
@@ -722,13 +722,13 @@ function formatDur(sec: number) {
   width: 52px;
   height: 52px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--primary), var(--primary-strong));
+  background: var(--primary);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 22px;
   cursor: pointer;
-  box-shadow: 0 6px 20px rgba(108, 123, 255, 0.4);
+  box-shadow: 0 6px 20px rgba(0, 113, 227, 0.4);
   z-index: 20;
 }
 .rank-panel {
@@ -749,7 +749,7 @@ function formatDur(sec: number) {
   border-radius: 8px;
 }
 .rank-row.me {
-  background: rgba(108, 123, 255, 0.15);
+  background: rgba(0, 113, 227, 0.15);
 }
 .rk {
   width: 24px;

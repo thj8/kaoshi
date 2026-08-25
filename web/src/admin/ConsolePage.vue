@@ -89,7 +89,7 @@
       <button class="btn btn-ghost" :disabled="curIndex <= 0 || status === 'WAITING'" @click="ctrl('previous')">← 上一题</button>
       <button v-if="status === 'WAITING'" class="btn btn-primary big" @click="ctrl('start')">▶ 开始答题</button>
       <button v-if="status === 'PAUSED'" class="btn btn-primary big" @click="ctrl('resume')">▶ 继续</button>
-      <button v-if="canRush" class="btn big" style="background: linear-gradient(135deg, #ff7062, #e0404f)" @click="ctrl('rush/start')">⚡ 开始抢答</button>
+      <button v-if="canRush" class="btn big" style="background: #ff3b30; color: #fff" @click="ctrl('rush/start')">⚡ 开始抢答</button>
       <button v-if="status === 'RUSHING'" class="btn btn-ghost" style="color: var(--warn)" @click="ctrl('rush/end')">■ 结束抢答</button>
       <button v-if="status === 'ANSWERING' || status === 'REVEALING'" class="btn btn-ghost" style="color: var(--warn)" @click="ctrl('pause')">⏸ 暂停</button>
       <button v-if="canReveal" class="btn btn-ghost" style="color: var(--success)" @click="ctrl('reveal')">📢 公布答案</button>
@@ -312,7 +312,7 @@ function barWidth(cnt: number) {
   border: 1px solid transparent;
 }
 .q-item.cur {
-  background: rgba(108, 123, 255, 0.12);
+  background: rgba(0, 113, 227, 0.12);
   border-color: var(--primary);
 }
 .q-no {
@@ -347,7 +347,7 @@ function barWidth(cnt: number) {
 }
 .opt-line.correct {
   border-color: var(--success);
-  background: rgba(46, 204, 143, 0.12);
+  background: rgba(52, 199, 89, 0.12);
 }
 .dist-chip {
   margin-left: auto;
@@ -355,7 +355,7 @@ function barWidth(cnt: number) {
   color: var(--text-dim);
 }
 .rush-box {
-  background: rgba(255, 93, 108, 0.08);
+  background: rgba(255, 59, 48, 0.08);
   border: 1px solid var(--danger);
   border-radius: 10px;
   padding: 10px 12px;
@@ -409,7 +409,7 @@ function barWidth(cnt: number) {
 .dist-bar {
   height: 100%;
   border-radius: 7px;
-  background: linear-gradient(90deg, var(--primary), var(--primary-strong));
+  background: var(--primary);
   transition: width 0.3s ease;
 }
 .controls {
