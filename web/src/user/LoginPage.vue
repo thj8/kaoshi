@@ -14,7 +14,6 @@
           <label for="f-pass">密码</label>
           <input id="f-pass" v-model="password" class="input" type="password" autocomplete="current-password" />
         </div>
-        <p v-if="err" class="err" role="alert">{{ err }}</p>
         <button class="btn btn-primary submit" :disabled="loading">
           {{ loading ? '登录中…' : '登录' }}
         </button>
@@ -31,13 +30,13 @@ import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { userApi, globalToken } from '../api/user'
 import { LS } from '../api'
+import { toast } from '../toast'
 
 const route = useRoute()
 const router = useRouter()
 
 const username = ref('')
 const password = ref('')
-const err = ref('')
 const loading = ref(false)
 
 const redirectHint = computed(() => {
@@ -52,11 +51,10 @@ const redirectHint = computed(() => {
 
 async function submit() {
   if (!username.value.trim() || !password.value) {
-    err.value = '请输入用户名和密码'
+    toast('请输入用户名和密码')
     return
   }
   loading.value = true
-  err.value = ''
   try {
     const r = await userApi.login(username.value.trim(), password.value)
     localStorage.setItem(LS.userGlobalToken, r.token)
@@ -68,7 +66,7 @@ async function submit() {
       router.replace('/join')
     }
   } catch (e: any) {
-    err.value = e?.response?.data?.msg || '操作失败'
+    toast(e?.response?.data?.msg || '登录失败，请重试')
   } finally {
     loading.value = false
   }
@@ -143,10 +141,6 @@ h1 {
   font-weight: 600;
   color: var(--text-dim);
   margin-bottom: 6px;
-}
-.err {
-  color: var(--danger);
-  font-size: 14px;
 }
 .submit {
   width: 100%;
