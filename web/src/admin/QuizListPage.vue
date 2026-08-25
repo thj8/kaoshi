@@ -27,11 +27,15 @@
           <button class="btn btn-primary" style="flex: 1; padding: 9px" @click="$router.push(`/admin/quiz/${q.id}/console`)">
             控制台
           </button>
+          <button class="btn btn-ghost" style="flex: 1; padding: 9px" @click="$router.push(`/admin/quiz/${q.id}/stats`)">
+            统计
+          </button>
           <button
             v-if="q.status === 'WAITING'"
             class="btn btn-ghost"
             style="flex: 1; padding: 9px"
             @click="$router.push(`/admin/quiz/${q.id}`)"
+          >
           >
             编辑
           </button>
