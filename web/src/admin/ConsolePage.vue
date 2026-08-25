@@ -95,6 +95,7 @@
       <button v-if="canReveal" class="btn btn-ghost" style="color: var(--success)" @click="ctrl('reveal')">📢 公布答案</button>
       <button v-if="status !== 'WAITING' && status !== 'FINISHED'" class="btn btn-primary big" @click="ctrl('next')">下一题 →</button>
       <button v-if="status !== 'WAITING' && status !== 'FINISHED'" class="btn btn-danger" @click="ctrl('end')">■ 结束答题</button>
+      <button v-if="status !== 'WAITING'" class="btn btn-danger" @click="ctrl('reset')" title="清空答题/抢答记录与成绩，活动回到未开始">↺ 重置比赛</button>
       <span v-if="status === 'FINISHED'" class="text-dim" style="padding: 10px">答题已结束</span>
     </div>
   </div>
@@ -252,6 +253,7 @@ function applyQuestion(q: any, deadline: number) {
 
 async function ctrl(action: string) {
   if (action === 'end' && !confirm('确定结束答题？将生成最终成绩与排行榜')) return
+  if (action === 'reset' && !confirm('确定重置？将清空所有答题/抢答记录与成绩，比赛回到未开始状态（题目和已加入的选手保留）')) return
   try {
     await fetch(`/api/admin/quiz/${quizId}/${action}`, {
       method: 'POST',

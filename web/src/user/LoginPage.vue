@@ -1,26 +1,26 @@
 <template>
-  <div class="page" style="max-width: 440px; padding-top: 9vh">
-    <div class="card" style="padding: 32px">
-      <h1 style="font-size: 22px; margin-bottom: 4px">📝 答题系统</h1>
-      <p class="text-dim" style="margin-bottom: 22px">账号由管理员创建，凭用户名密码登录</p>
+  <div class="auth-wrap">
+    <div class="auth-box">
+      <div class="mark">答</div>
+      <p class="eyebrow">实时理论竞赛</p>
+      <h1>理论答题系统</h1>
 
-
-      <form @submit.prevent="submit">
-        <div style="margin-bottom: 14px">
-          <input v-model="username" class="input" placeholder="用户名" autocomplete="username" />
+      <form class="auth-card" @submit.prevent="submit">
+        <div class="field">
+          <label for="f-user">用户名</label>
+          <input id="f-user" v-model="username" class="input" autocomplete="username" />
         </div>
-        <div style="margin-bottom: 14px">
-          <input v-model="password" class="input" type="password" placeholder="密码" autocomplete="current-password" />
+        <div class="field">
+          <label for="f-pass">密码</label>
+          <input id="f-pass" v-model="password" class="input" type="password" autocomplete="current-password" />
         </div>
-        <p v-if="err" style="color: var(--danger); margin-bottom: 12px; font-size: 14px">{{ err }}</p>
-        <button class="btn btn-primary" style="width: 100%" :disabled="loading">
-          {{ loading ? '请稍候...' : '登 录' }}
+        <button class="btn btn-primary submit" :disabled="loading">
+          {{ loading ? '登录中…' : '登录' }}
         </button>
       </form>
 
-      <p v-if="redirectHint" class="text-dim" style="margin-top: 14px; font-size: 13px; text-align: center">
-        登录后将自动进入：{{ redirectHint }}
-      </p>
+
+      <p v-if="redirectHint" class="hint">登录后自动进入{{ redirectHint }}</p>
     </div>
   </div>
 </template>
@@ -30,13 +30,13 @@ import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { userApi, globalToken } from '../api/user'
 import { LS } from '../api'
+import { toast } from '../toast'
 
 const route = useRoute()
 const router = useRouter()
 
 const username = ref('')
 const password = ref('')
-const err = ref('')
 const loading = ref(false)
 
 const redirectHint = computed(() => {
@@ -51,11 +51,10 @@ const redirectHint = computed(() => {
 
 async function submit() {
   if (!username.value.trim() || !password.value) {
-    err.value = '请输入用户名和密码'
+    toast('请输入用户名和密码')
     return
   }
   loading.value = true
-  err.value = ''
   try {
     const r = await userApi.login(username.value.trim(), password.value)
     localStorage.setItem(LS.userGlobalToken, r.token)
@@ -67,7 +66,7 @@ async function submit() {
       router.replace('/join')
     }
   } catch (e: any) {
-    err.value = e?.response?.data?.msg || '操作失败'
+    toast(e?.response?.data?.msg || '登录失败，请重试')
   } finally {
     loading.value = false
   }
@@ -81,27 +80,85 @@ if (globalToken()) {
 </script>
 
 <style scoped>
-.tabs {
+.auth-wrap {
+  min-height: 100vh;
   display: flex;
-  gap: 8px;
-  margin-bottom: 20px;
-  background: var(--bg-soft);
-  border-radius: 10px;
-  padding: 4px;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  background:
+    radial-gradient(900px 460px at 50% -8%, rgba(0, 113, 227, 0.09), transparent 70%),
+    var(--bg);
 }
-.tab {
-  flex: 1;
-  padding: 9px;
-  border: none;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--text-dim);
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
+.auth-box {
+  width: 352px;
+  max-width: 100%;
+  text-align: center;
 }
-.tab.on {
-  background: linear-gradient(135deg, var(--primary), var(--primary-strong));
+.mark {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 18px;
+  border-radius: 16px;
+  background: var(--primary);
   color: #fff;
+  font-size: 25px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 10px 24px rgba(0, 113, 227, 0.26);
+  animation: rise 0.45s ease both;
+}
+.eyebrow {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+  letter-spacing: 0.14em;
+}
+h1 {
+  font-size: 27px;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  margin-top: 4px;
+}
+.auth-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  box-shadow: var(--shadow);
+  padding: 22px 20px 20px;
+  margin-top: 28px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  animation: rise 0.45s ease 0.05s both;
+}
+.field label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+.submit {
+  width: 100%;
+  margin-top: 2px;
+}
+
+.hint {
+  margin-top: 18px;
+  color: var(--text-dim);
+  font-size: 13px;
+}
+@keyframes rise {
+  from { opacity: 0; transform: translateY(10px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mark,
+  .auth-card {
+    animation: none;
+  }
 }
 </style>

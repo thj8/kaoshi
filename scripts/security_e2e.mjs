@@ -1,5 +1,5 @@
 // 理论答题安全 E2E：抢答权限 / 答案回显 / reveal 门控 / 状态机 / 越权 / 倒计时
-// 用法：node scripts/security_e2e.mjs   （NO_CLEAN=1 跳过开头清库）
+// 用法：node scripts/security_e2e.mjs   （默认不清库；CLEAN=1 时先清库）
 // 开头清空 MySQL 各表 + Redis 抢答状态，再建测试用户与题目；任一断言失败退出码 1
 import { execSync as sh } from 'node:child_process'
 const B = process.env.BASE_URL || 'http://127.0.0.1:18080'
@@ -30,8 +30,8 @@ function connect(token, onMsg) {
 }
 
 ;(async () => {
-  // ---------- 0. 清理数据库 + Redis（幂等，失败则时间戳后缀隔离兜底） ----------
-  if (process.env.NO_CLEAN !== '1') {
+  // ---------- 0. 清理数据库 + Redis（仅 CLEAN=1 时执行，保护测试/模拟数据） ----------
+  if (process.env.CLEAN === '1') {
     try {
       sh(`docker exec kaoshi-mysql mysql -uroot -p${MYSQL_PASS} kaoshi -e "SET FOREIGN_KEY_CHECKS=0; TRUNCATE answers; TRUNCATE rush_records; TRUNCATE participants; TRUNCATE question_options; TRUNCATE questions; TRUNCATE quizzes; TRUNCATE users; SET FOREIGN_KEY_CHECKS=1;"`, { stdio: ['ignore', 'pipe', 'pipe'] })
       sh(`docker exec kaoshi-redis redis-cli -a ${REDIS_PASS} FLUSHDB`, { stdio: ['ignore', 'pipe', 'pipe'] })
@@ -66,9 +66,10 @@ function connect(token, onMsg) {
     await j('POST', '/api/admin/users', { username: u, password: 'test-pass-1234', nickname: n }, at)
     return (await j('POST', '/api/auth/login', { username: u, password: 'test-pass-1234' })).data
   }
-  const alice = await reg('sec_alice', 'Alice')
-  const bob = await reg('sec_bob', 'Bob')
-  const eve = await reg('sec_eve', 'Eve')
+  const sfx = Date.now() % 100000
+  const alice = await reg(`zhangwei${sfx}`, '张伟')
+  const bob = await reg(`lina${sfx}`, '李娜')
+  const eve = await reg(`wangfang${sfx}`, '王芳')
   const jR_a = (await j('POST', '/api/join', { quiz_id: quizR.id }, alice.token)).data
   const jR_b = (await j('POST', '/api/join', { quiz_id: quizR.id }, bob.token)).data
   const jN_a = (await j('POST', '/api/join', { quiz_id: quizN.id }, alice.token)).data

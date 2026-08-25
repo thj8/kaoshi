@@ -23,9 +23,11 @@ function connect(token, onMsg) {
 ;(async () => {
   const at = (await j('POST', '/api/admin/login', { username: 'admin', password: env('ADMIN_PASS') })).data.token
   const mkU = async u => { // 注册已下线：admin 建号 + 登录
-    await j('POST', '/api/admin/users', { username: u, password: 'test-pass-1234', nickname: 'U' }, at)
+    const NAMES = ['陈晨', '刘洋', '赵磊', '孙悦', '周杰', '吴倩', '郑浩', '王梅']
+    await j('POST', '/api/admin/users', { username: u, password: 'test-pass-1234', nickname: NAMES[uN++ % NAMES.length] }, at)
     return (await j('POST', '/api/auth/login', { username: u, password: 'test-pass-1234' })).data
   }
+  let uN = 0
   const sfx = Date.now() % 100000
 
   // ---------- 1. 普通 quiz：鉴权 / 防重复 / 答案泄露 ----------

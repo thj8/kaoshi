@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"errors"
 	"sort"
 	"time"
@@ -242,6 +243,53 @@ func (e *Engine) End(quizID int64) error {
 	rank := e.buildRanking(quizID, 200)
 	payload := map[string]any{"ranking": rank}
 	e.Hub.Broadcast(quizID, ws.EventActivityEnd, payload)
+	return nil
+}
+
+// Reset 一键重置：清空答题/抢答记录与成绩，活动回到 WAITING（题目保留、参与者保留）
+func (e *Engine) Reset(quizID int64) error {
+	rt, err := e.Get(quizID)
+	if err != nil {
+		return ErrNotFound
+	}
+	rt.mu.Lock()
+	rt.stopTimer()
+	rt.stopTicker()
+	rt.stopRushTimer()
+	rt.stopRushTicker()
+	rt.mu.Unlock()
+
+	// 丢弃运行时缓存，下次访问从 DB 重新加载
+	e.mu.Lock()
+	delete(e.runtimes, quizID)
+	e.mu.Unlock()
+
+	// 清记录 + 成绩归零（参与者保留，已加入的用户无需重新加入）
+	e.DB.Where("quiz_id = ?", quizID).Delete(&model.Answer{})
+	e.DB.Where("quiz_id = ?", quizID).Delete(&model.RushRecord{})
+	e.DB.Model(&model.Participant{}).Where("quiz_id = ?", quizID).Updates(map[string]any{
+		"score": 0, "correct_count": 0, "wrong_count": 0, "finished_at": nil,
+	})
+	e.DB.Model(&model.Quiz{}).Where("id = ?", quizID).Updates(map[string]any{
+		"status": model.QuizStatusWaiting, "started_at": nil, "ended_at": nil,
+	})
+
+	// 清 Redis 抢答判重键
+	var qids []int64
+	e.DB.Model(&model.Question{}).Where("quiz_id = ?", quizID).Pluck("id", &qids)
+	ctx := context.Background()
+	for _, qid := range qids {
+		k1, k2 := rushKeys(quizID, qid)
+		e.RDB.Del(ctx, k1, k2)
+	}
+
+	// 通知在线客户端回到待开始
+	e.Hub.Broadcast(quizID, ws.EventSync, ws.SyncData{
+		Quiz: &ws.QuizBrief{ID: rt.quiz.ID, Title: rt.quiz.Title, Description: rt.quiz.Description, Mode: rt.quiz.Mode,
+			ShowAnswer: rt.quiz.ShowAnswer, ShowAnalysis: rt.quiz.ShowAnalysis, ShowRanking: rt.quiz.ShowRanking},
+		Status:    model.QuizStatusWaiting,
+		ServerNow: nowMilli(),
+	})
 	return nil
 }
 

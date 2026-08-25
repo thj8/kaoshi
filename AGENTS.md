@@ -63,6 +63,7 @@ npm run build               # 类型检查 + 构建（vue-tsc + vite）
 - 后端 API 直连：`http://<服务器IP>:18080`
 - 用户端 `/join`，管理端 `/admin/login`（admin，密码在 `.env` 的 `ADMIN_PASS`，不入库）
 - 容器日志：`docker compose logs -f server` / `web`；重置测试数据见 README「数据重置」
+- **测试数据保护（硬性约束）**：不要清除/重置数据库中的测试/模拟数据（包括 E2E 产生的数据），除非用户明确要求
 
 ## 环境注意事项（重要，容易踩坑）
 
@@ -104,9 +105,8 @@ npm run build               # 类型检查 + 构建（vue-tsc + vite）
   node scripts/security_e2e.mjs && node scripts/hardening_e2e.mjs
   ```
 
-  用例清单与详细说明见 `TESTCASES.md`。任一断言失败：先修复再提交，禁止跳过或只跑其中一个。
-- **分支工作流（重要）**：每个阶段一个分支开发，完成后再合并回 main
-
+- **E2E 执行时机**：仅在 git commit 前或用户明确要求时运行；平时修改代码/构建后不要主动跑 E2E
+- 用例清单与详细说明见 `TESTCASES.md`。任一断言失败：先修复再提交，禁止跳过或只跑其中一个。
 - **分支工作流（重要）**：每个阶段一个分支开发，完成后再合并回 main
   1. 开发前：`git checkout main && git pull` → `git checkout -b feat/stageN-简短英文`（如 `feat/stage5-rush`、`feat/stage7-stats`；修复用 `fix/xxx`）
   2. 阶段内可多次提交，消息：`<type>: 阶段N 描述`，type 用 chore/feat/fix/docs
