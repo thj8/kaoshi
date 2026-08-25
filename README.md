@@ -93,6 +93,8 @@ cd web && npm run dev
 
 改密钥/账号：编辑 `docker-compose.yml` 中 `KAOSHI_*` 环境变量后 `docker compose up -d server`。
 
+> 安全：JWT secret 已随机化且为空即拒绝启动；admin 密码已随机化；管理端登录同 IP 5 次失败锁 1 分钟；WS token 改走 `Sec-WebSocket-Protocol` 头（不再进 URL/访问日志）。
+
 ## 当前状态
 
 ✅ 阶段 0-8 全部完成：脚手架 / 数据模型 / 管理端 CRUD / 用户加入 + WS / 普通答题全流程 / 抢答引擎（Redis Lua 原子判序）/ 实时排行榜 + reveal 个人答案单播 / 结束统计页 / 加固验证

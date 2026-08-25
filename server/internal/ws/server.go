@@ -47,7 +47,12 @@ func (s *Server) HandleWS(c *gin.Context) {
 		return
 	}
 
-	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	// token 走子协议时回显，否则浏览器/undici 会因服务端未选择子协议而断开
+	var respHeader http.Header
+	if proto := c.GetHeader("Sec-WebSocket-Protocol"); proto != "" {
+		respHeader = http.Header{"Sec-WebSocket-Protocol": []string{proto}}
+	}
+	conn, err := upgrader.Upgrade(c.Writer, c.Request, respHeader)
 	if err != nil {
 		return
 	}

@@ -19,7 +19,7 @@ function connect(token, onMsg) {
 }
 
 ;(async () => {
-  const at = (await j('POST', '/api/admin/login', { username: 'admin', password: 'admin123' })).data.token
+  const at = (await j('POST', '/api/admin/login', { username: 'admin', password: process.env.ADMIN_PASS || '***REMOVED***' })).data.token
   const sfx = Date.now() % 100000
 
   // ---------- 1. 普通 quiz：鉴权 / 防重复 / 答案泄露 ----------

@@ -13,10 +13,10 @@ export interface WSOptions {
   onStatus?: (status: 'connecting' | 'open' | 'closed' | 'retrying') => void
 }
 
-export function wsURL(token: string, quiz?: number): string {
+/** token 走 Sec-WebSocket-Protocol 子协议（不下发 URL，避免进访问日志）；后端从该头读取 */
+export function wsURL(quiz?: number) {
   const base = import.meta.env.VITE_WS_BASE || `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}`
-  const url = `${base}/ws?token=${encodeURIComponent(token)}`
-  return quiz ? `${url}&quiz=${quiz}` : url
+  return quiz ? `${base}/ws?quiz=${quiz}` : `${base}/ws`
 }
 
 export class QuizWS {
@@ -34,7 +34,7 @@ export class QuizWS {
 
   private connect() {
     this.opts.onStatus?.('connecting')
-    const ws = new WebSocket(wsURL(this.opts.token, this.opts.quiz))
+    const ws = new WebSocket(wsURL(this.opts.quiz), [this.opts.token])
     this.ws = ws
 
     ws.onopen = () => {
