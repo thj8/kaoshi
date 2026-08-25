@@ -1,11 +1,13 @@
 // 生成演示/验证用测试数据：清库 → 建 3 个用户 + 2 场答题（普通模式、抢答模式）
 // 用法：node scripts/seed.mjs
 import { execSync as sh } from 'node:child_process'
+import { readFileSync } from 'node:fs'
+const env = k => process.env[k] || (readFileSync('.env', 'utf8').match(new RegExp('^' + k + '=(.*)$', 'm')) || [])[1] || ''
 
 const B = process.env.BASE_URL || 'http://127.0.0.1:18080'
-const ADMIN_PASS = process.env.ADMIN_PASS || '***REMOVED***'
-const MYSQL_PASS = process.env.MYSQL_PASS || '***REMOVED***'
-const REDIS_PASS = process.env.REDIS_PASS || '***REMOVED***'
+const ADMIN_PASS = env('ADMIN_PASS')
+const MYSQL_PASS = env('MYSQL_ROOT_PASSWORD')
+const REDIS_PASS = env('REDIS_PASSWORD')
 
 const j = async (method, path, body, token) => {
   const r = await fetch(B + path, {
@@ -34,9 +36,9 @@ const USERS = [
   { username: 'player2', password: 'player12345', nickname: '选手二号' },
   { username: 'player3', password: 'player12345', nickname: '选手三号' },
 ]
-for (const u of USERS) {
-  const r = await j('POST', '/api/auth/register', u)
-  if (r.code !== 0) throw new Error('注册失败 ' + u.username + ': ' + r.msg)
+for (const u of USERS) { // 注册已下线：管理员创建
+  const r = await j('POST', '/api/admin/users', u, at)
+  if (r.code !== 0) throw new Error('建号失败 ' + u.username + ': ' + r.msg)
 }
 
 // ---------- 3. 答题活动 ----------
@@ -66,9 +68,9 @@ console.log(`✅ 测试数据已生成：
 📋 管理员：admin / ${ADMIN_PASS}   →  http://<IP>:13000/admin/login
 
 👥 选手账号（/login 登录后经 /join/<quizID> 参赛）：
-   player1 / pass1234（选手一号）
-   player2 / pass1234（选手二号）
-   player3 / pass1234（选手三号）
+   player1 / player12345（选手一号）
+   player2 / player12345（选手二号）
+   player3 / player12345（选手三号）
 
 🎯 答题活动（均为 WAITING 待开始，管理端点「开始」即可开赛）：
    #1 常识知识竞赛（普通模式，5 题，每题 20-30s，reveal 显示答案+解析）

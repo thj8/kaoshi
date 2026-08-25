@@ -28,7 +28,7 @@ func env(key, def string) string {
 func Load() *Config {
 	cfg := &Config{
 		Addr:        env("KAOSHI_ADDR", ":8080"),
-		MySQLDSN:    env("KAOSHI_MYSQL_DSN", "root:***REMOVED***@tcp(127.0.0.1:13306)/kaoshi?charset=utf8mb4&parseTime=True&loc=Local"),
+		MySQLDSN:    env("KAOSHI_MYSQL_DSN", "root@tcp(127.0.0.1:13306)/kaoshi?charset=utf8mb4&parseTime=True&loc=Local"), // 密码经 DSN 环境变量注入，不入库
 		RedisAddr:   env("KAOSHI_REDIS_ADDR", "127.0.0.1:16379"),
 		RedisPass:   env("KAOSHI_REDIS_PASS", ""),
 		RedisDB:     0,

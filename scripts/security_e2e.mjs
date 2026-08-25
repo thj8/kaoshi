@@ -3,9 +3,11 @@
 // 开头清空 MySQL 各表 + Redis 抢答状态，再建测试用户与题目；任一断言失败退出码 1
 import { execSync as sh } from 'node:child_process'
 const B = process.env.BASE_URL || 'http://127.0.0.1:18080'
-const MYSQL_PASS = process.env.MYSQL_PASS || '***REMOVED***'
-const REDIS_PASS = process.env.REDIS_PASS || '***REMOVED***'
-const ADMIN_PASS = process.env.ADMIN_PASS || '***REMOVED***'
+import { readFileSync } from 'node:fs'
+const env = k => process.env[k] || (readFileSync('.env', 'utf8').match(new RegExp('^' + k + '=(.*)$', 'm')) || [])[1] || ''
+const MYSQL_PASS = env('MYSQL_ROOT_PASSWORD')
+const REDIS_PASS = env('REDIS_PASSWORD')
+const ADMIN_PASS = env('ADMIN_PASS')
 
 const j = async (m, u, b, tok) => {
   const r = await fetch(B + u, { method: m, headers: { 'Content-Type': 'application/json', ...(tok ? { Authorization: 'Bearer ' + tok } : {}) }, body: b ? JSON.stringify(b) : undefined })
@@ -60,10 +62,13 @@ function connect(token, onMsg) {
   const qF = (await mkQs(quizF.id, { type: 'single', content: '展示题?', answer: 'B', score: 10, required: true, time_limit: 20, options: opts(['A', 'B']) })).data
   const qM = (await mkQs(quizF.id, { type: 'multiple', content: '多选?', answer: 'AC', score: 10, required: true, time_limit: 20, options: opts(['A', 'B', 'C']) })).data
 
-  const reg = (u, n) => j('POST', '/api/auth/register', { username: u, password: 'test-pass-1234', nickname: n })
-  const alice = (await reg('sec_alice', 'Alice')).data
-  const bob = (await reg('sec_bob', 'Bob')).data
-  const eve = (await reg('sec_eve', 'Eve')).data
+  const reg = async (u, n) => { // 注册已下线：admin 建号 + 登录
+    await j('POST', '/api/admin/users', { username: u, password: 'test-pass-1234', nickname: n }, at)
+    return (await j('POST', '/api/auth/login', { username: u, password: 'test-pass-1234' })).data
+  }
+  const alice = await reg('sec_alice', 'Alice')
+  const bob = await reg('sec_bob', 'Bob')
+  const eve = await reg('sec_eve', 'Eve')
   const jR_a = (await j('POST', '/api/join', { quiz_id: quizR.id }, alice.token)).data
   const jR_b = (await j('POST', '/api/join', { quiz_id: quizR.id }, bob.token)).data
   const jN_a = (await j('POST', '/api/join', { quiz_id: quizN.id }, alice.token)).data

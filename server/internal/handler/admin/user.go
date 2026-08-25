@@ -86,11 +86,11 @@ func (h *Handler) ListUsers(c *gin.Context) {
 func (h *Handler) CreateUser(c *gin.Context) {
 	var req struct {
 		Username string `json:"username" binding:"required,min=2,max=32"`
-		Password string `json:"password" binding:"required,min=4,max=64"`
+		Password string `json:"password" binding:"required,min=10,max=64"`
 		Nickname string `json:"nickname" binding:"required,min=1,max=32"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		fail(c, 400, "用户名2-32位、密码至少4位、昵称1-32位")
+		fail(c, 400, "用户名2-32位、密码至少10位、昵称1-32位")
 		return
 	}
 	var cnt int64

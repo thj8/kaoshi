@@ -18,9 +18,9 @@ docker compose up -d --build
 
 | 入口 | 地址 | 说明 |
 |---|---|---|
-| **用户登录/注册** | `http://<服务器IP>:13000/login` | 用户名 + 密码（首次注册带昵称） |
+| **用户登录** | `http://<服务器IP>:13000/login` | 用户名 + 密码（账号由管理员在「用户管理」创建，无自助注册） |
 | **答题用户端** | `http://<服务器IP>:13000/join/<答题ID>` | 登录后自动加入 |
-| **管理端** | `http://<服务器IP>:13000/admin/login` | 默认账号 `admin` / `admin123` |
+| **管理端** | `http://<服务器IP>:13000/admin/login` | 账号 `admin`，密码见 `.env` 的 `ADMIN_PASS` |
 | 后端 API 直连 | `http://<服务器IP>:18080` | REST + WebSocket |
 
 - 前端 nginx 已反代 `/api` 与 `/ws` 到后端，**任意 IP / 域名访问均可**，无需改配置
@@ -40,7 +40,7 @@ docker compose up -d --build
 
 1. **管理端** `http://IP:13000/admin/login` 登录 → 创建答题（普通模式）→ 添加几道题（单选/多选/判断）
 2. 复制列表卡片上的 **加入链接**（`/join/<ID>`）发给用户
-3. **用户端**首次访问 `/login` 注册（用户名+密码+昵称），之后点链接登录即进入答题；可多浏览器/无痕窗口模拟多人
+3. **用户端**账号由管理端「用户管理」创建，用户在 `/login` 登录后经 `/join/<quizID>` 进入答题；可多浏览器/无痕窗口模拟多人
 4. 管理端打开 **控制台** → `▶ 开始答题` → 用户端自动收到第 1 题
 5. 用户提交答案 → 控制台实时看到 已答/正确/选项分布
 6. `📢 公布答案` → 用户端显示正确答案与解析（受配置开关控制）
@@ -126,6 +126,6 @@ node scripts/hardening_e2e.mjs   # 需先 docker compose up；BASE_URL 可覆盖
 ## 数据重置
 
 ```bash
-docker exec kaoshi-mysql mysql -uroot -p***REMOVED*** kaoshi \
+docker exec kaoshi-mysql mysql -uroot -p"$MYSQL_ROOT_PASSWORD" kaoshi \
   -e "SET FOREIGN_KEY_CHECKS=0; TRUNCATE answers; TRUNCATE rush_records; TRUNCATE participants; TRUNCATE question_options; TRUNCATE questions; TRUNCATE quizzes; TRUNCATE users; SET FOREIGN_KEY_CHECKS=1;"
 ```

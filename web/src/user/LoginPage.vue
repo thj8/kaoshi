@@ -2,12 +2,8 @@
   <div class="page" style="max-width: 440px; padding-top: 9vh">
     <div class="card" style="padding: 32px">
       <h1 style="font-size: 22px; margin-bottom: 4px">📝 答题系统</h1>
-      <p class="text-dim" style="margin-bottom: 22px">用户名密码登录，开始答题</p>
+      <p class="text-dim" style="margin-bottom: 22px">账号由管理员创建，凭用户名密码登录</p>
 
-      <div class="tabs">
-        <button class="tab" :class="{ on: mode === 'login' }" @click="mode = 'login'">登 录</button>
-        <button class="tab" :class="{ on: mode === 'register' }" @click="mode = 'register'">注 册</button>
-      </div>
 
       <form @submit.prevent="submit">
         <div style="margin-bottom: 14px">
@@ -16,12 +12,9 @@
         <div style="margin-bottom: 14px">
           <input v-model="password" class="input" type="password" placeholder="密码" autocomplete="current-password" />
         </div>
-        <div v-if="mode === 'register'" style="margin-bottom: 18px">
-          <input v-model="nickname" class="input" placeholder="昵称（答题排行榜展示）" maxlength="32" />
-        </div>
         <p v-if="err" style="color: var(--danger); margin-bottom: 12px; font-size: 14px">{{ err }}</p>
         <button class="btn btn-primary" style="width: 100%" :disabled="loading">
-          {{ loading ? '请稍候...' : mode === 'login' ? '登 录' : '注册并登录' }}
+          {{ loading ? '请稍候...' : '登 录' }}
         </button>
       </form>
 
@@ -41,10 +34,8 @@ import { LS } from '../api'
 const route = useRoute()
 const router = useRouter()
 
-const mode = ref<'login' | 'register'>('login')
 const username = ref('')
 const password = ref('')
-const nickname = ref('')
 const err = ref('')
 const loading = ref(false)
 
@@ -63,17 +54,10 @@ async function submit() {
     err.value = '请输入用户名和密码'
     return
   }
-  if (mode.value === 'register' && !nickname.value.trim()) {
-    err.value = '请输入昵称（排行榜展示用）'
-    return
-  }
   loading.value = true
   err.value = ''
   try {
-    const r =
-      mode.value === 'login'
-        ? await userApi.login(username.value.trim(), password.value)
-        : await userApi.register(username.value.trim(), password.value, nickname.value.trim())
+    const r = await userApi.login(username.value.trim(), password.value)
     localStorage.setItem(LS.userGlobalToken, r.token)
     localStorage.setItem(LS.userNick, r.user.nickname)
     const redirect = (route.query.redirect as string) || ''

@@ -34,7 +34,6 @@ func Register(r *gin.Engine, cfg *config.Config, db *gorm.DB, rdb *redis.Client)
 	// 公开接口（注册/登录/brief）
 	answerH := api.NewAnswer(db, eng)
 	apiH := api.New(db, cfg.JWTSecret)
-	r.POST("/api/auth/register", apiH.Register)
 	r.POST("/api/auth/login", apiH.Login)
 	r.GET("/api/quiz/:id/brief", apiH.QuizBrief)
 
