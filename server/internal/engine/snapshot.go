@@ -41,9 +41,25 @@ func (e *Engine) Snapshot(claims *auth.Claims) (*ws.SyncData, error) {
 		ServerNow:  nowMilli(),
 	}
 
-	// 抢答状态恢复（进行中或已结束均返回获答名单与本人抢答结果）
+	// 当前题 + 抢答状态恢复（进行中或已结束均返回获答名单与本人抢答结果）
 	if rt.curIndex >= 0 && rt.curIndex < len(rt.questions) {
 		cq := rt.questions[rt.curIndex]
+		opts := rt.getOptionsLocked(e, cq.ID)
+		brief := &ws.QuestionBrief{
+			ID:        cq.ID,
+			Index:     rt.curIndex + 1,
+			Total:     len(rt.questions),
+			Type:      cq.Type,
+			Content:   cq.Content,
+			Score:     cq.Score,
+			Required:  cq.Required,
+			TimeLimit: cq.TimeLimit,
+		}
+		for _, o := range opts {
+			brief.Options = append(brief.Options, ws.Option{Label: o.Label, Content: o.Content})
+		}
+		data.Question = brief
+
 		if rt.quiz.Status == model.QuizStatusRushing {
 			data.DeadlineAt = rt.rushDeadline
 			data.RushWinners = e.redisWinners(rt, cq.ID)
@@ -51,7 +67,7 @@ func (e *Engine) Snapshot(claims *auth.Claims) (*ws.SyncData, error) {
 				data.MyRushRank = e.myRushRank(quizID, cq.ID, claims.UserID)
 			}
 		} else if e.isRushQuestion(quizID, cq.ID) {
-			data.RushWinners = e.rushWinnersFromDB(quizID, cq.ID, rt.quiz.RushBonusScore)
+			data.RushWinners = e.rushWinnersFromDB(quizID, cq.ID)
 			if claims.Role == auth.RoleUser {
 				var rec model.RushRecord
 				if e.DB.Where("quiz_id = ? AND question_id = ? AND user_id = ?", quizID, cq.ID, claims.UserID).
@@ -60,26 +76,6 @@ func (e *Engine) Snapshot(claims *auth.Claims) (*ws.SyncData, error) {
 				}
 			}
 		}
-	}
-
-	// 当前题目（剥离答案/解析）
-	if rt.curIndex >= 0 && rt.curIndex < len(rt.questions) {
-		q := rt.questions[rt.curIndex]
-		opts := rt.getOptionsLocked(e, q.ID)
-		brief := &ws.QuestionBrief{
-			ID:        q.ID,
-			Index:     rt.curIndex + 1,
-			Total:     len(rt.questions),
-			Type:      q.Type,
-			Content:   q.Content,
-			Score:     q.Score,
-			Required:  q.Required,
-			TimeLimit: q.TimeLimit,
-		}
-		for _, o := range opts {
-			brief.Options = append(brief.Options, ws.Option{Label: o.Label, Content: o.Content})
-		}
-		data.Question = brief
 	}
 
 	// 用户本人信息
@@ -95,11 +91,4 @@ func (e *Engine) Snapshot(claims *auth.Claims) (*ws.SyncData, error) {
 		data.Me = me
 	}
 	return data, nil
-}
-
-// SnapshotForQuiz 管理端快照（指定 quizID）
-func (e *Engine) SnapshotForQuiz(claims *auth.Claims, quizID int64) (*ws.SyncData, error) {
-	c2 := *claims
-	c2.QuizID = quizID
-	return e.Snapshot(&c2)
 }

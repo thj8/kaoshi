@@ -5,6 +5,7 @@ import (
 	"log"
 	"time"
 
+	gmysql "gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
 
@@ -16,7 +17,7 @@ func NewDB(dsn string) (*gorm.DB, error) {
 	var db *gorm.DB
 	var err error
 	for i := 0; i < 30; i++ {
-		db, err = gorm.Open(mysqlOpen(dsn), &gorm.Config{
+		db, err = gorm.Open(gmysql.Open(dsn), &gorm.Config{
 			Logger: gormlogger.Default.LogMode(gormlogger.Warn),
 		})
 		if err == nil {

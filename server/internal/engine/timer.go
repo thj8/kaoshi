@@ -28,30 +28,6 @@ func NewSyncTimer(d time.Duration, onFire func()) *SyncTimer {
 	return t
 }
 
-// Remain 剩余毫秒
-func (t *SyncTimer) Remain() int64 {
-	if t == nil {
-		return 0
-	}
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	r := time.Until(t.deadline).Milliseconds()
-	if r < 0 {
-		return 0
-	}
-	return r
-}
-
-// Deadline 截止毫秒时间戳
-func (t *SyncTimer) Deadline() int64 {
-	if t == nil {
-		return 0
-	}
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	return t.deadline.UnixMilli()
-}
-
 // Pause 暂停，返回剩余时长
 func (t *SyncTimer) Pause() time.Duration {
 	if t == nil {

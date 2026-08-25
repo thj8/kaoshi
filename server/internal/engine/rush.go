@@ -259,9 +259,9 @@ func (e *Engine) myRushRank(quizID, questionID, userID int64) int {
 }
 
 // rushWinnersFromDB 从 DB 读取本题抢答成功者（窗口已结束场景）
-func (e *Engine) rushWinnersFromDB(quizID, questionID int64, bonus int) []ws.RushWinner {
+func (e *Engine) rushWinnersFromDB(quizID, questionID int64) []ws.RushWinner {
 	var recs []model.RushRecord
-	e.DB.Where("quiz_id = ? AND question_id = ?", quizID, questionID).Order("rank ASC").Find(&recs)
+	e.DB.Where("quiz_id = ? AND question_id = ?", quizID, questionID).Order("`rank` ASC").Find(&recs)
 	if len(recs) == 0 {
 		return nil
 	}
@@ -318,7 +318,7 @@ func (e *Engine) rushWinnerIDs(quizID, questionID int64) []int64 {
 	var ids []int64
 	e.DB.Model(&model.RushRecord{}).
 		Where("quiz_id = ? AND question_id = ?", quizID, questionID).
-		Order("rank ASC").Pluck("user_id", &ids)
+		Order("`rank` ASC").Pluck("user_id", &ids)
 	return ids
 }
 

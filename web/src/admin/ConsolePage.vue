@@ -130,14 +130,12 @@ let tickTimer: number | null = null
 const remainSec = computed(() => Math.ceil(remainMs.value / 1000))
 const canReveal = computed(() => curIndex.value >= 0 && (status.value === 'ANSWERING' || status.value === 'REVEALING'))
 const rushWinners = ref<Array<{ user_id: number; nickname: string; rank: number; bonus: number }>>([])
-/** 本题已完成抢答（有获答者）后不可重抢 */
-const rushDone = computed(() => (rushWinners.value?.length ?? 0) > 0)
 const canRush = computed(
   () =>
     !!quiz.value?.rush_enabled &&
     status.value === 'ANSWERING' &&
     curIndex.value >= 0 &&
-    !rushDone.value
+    (rushWinners.value?.length ?? 0) === 0
 )
 const statusText = computed(() => ({ WAITING: '未开始', RUNNING: '进行中', PAUSED: '已暂停', RUSHING: '抢答中', ANSWERING: '答题中', REVEALING: '公布答案', FINISHED: '已结束' } as Record<string, string>)[status.value] || status.value)
 
@@ -229,7 +227,7 @@ function handleEvent(msg: WSMessage) {
       rushWinners.value = []
       break
     case Ev.RushEnd:
-      status.value = d.answer_deadline_at ? 'ANSWERING' : 'ANSWERING'
+      status.value = 'ANSWERING'
       rushWinners.value = d.winners || []
       if (d.answer_deadline_at) deadlineAt.value = d.answer_deadline_at
       break

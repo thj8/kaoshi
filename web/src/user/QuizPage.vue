@@ -383,7 +383,7 @@ function toggle(label: string) {
 
 async function doRush() {
   if (!store.question || store.rushState !== 'active') return
-  store.rushState = 'wait' as any // 防连点，等待服务器裁决
+  store.rushState = 'wait' // 防连点，等待服务器裁决
   try {
     await userApi.rush(store.question.id)
     // 结果由 WS rush:success / rush:failed 事件驱动 UI

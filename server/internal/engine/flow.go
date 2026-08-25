@@ -310,75 +310,47 @@ func (e *Engine) forceCollect(quizID int64, questionID int64) {
 	rt.stopTicker()
 	rt.deadline = 0
 
-	// 抢答题：只有抢答成功者需要作答（未答者记未答）；非抢答必答题：全员记未答
+	// 抢答题：只有获答者需要作答（未答记未答）；非抢答必答题：全员记未答
 	if e.isRushQuestion(quizID, questionID) {
-		winnerIDs := e.rushWinnerIDs(quizID, questionID)
-		if len(winnerIDs) > 0 {
-			var answered []int64
-			e.DB.Model(&model.Answer{}).
-				Where("quiz_id = ? AND question_id = ? AND user_id IN ?", quizID, questionID, winnerIDs).
-				Pluck("user_id", &answered)
-			ansSet := map[int64]bool{}
-			for _, u := range answered {
-				ansSet[u] = true
-			}
-			unanswered := []int64{}
-			for _, u := range winnerIDs {
-				if !ansSet[u] {
-					unanswered = append(unanswered, u)
-				}
-			}
-			if len(unanswered) > 0 {
-				records := make([]model.Answer, len(unanswered))
-				for i, u := range unanswered {
-					records[i] = model.Answer{
-						QuizID: quizID, QuestionID: questionID, UserID: u,
-						Answer: AnswerUnanswered, IsCorrect: false, Score: 0,
-						SubmittedAt: time.Now(),
-					}
-				}
-				_ = e.DB.Clauses(clause.OnConflict{DoNothing: true}).Create(&records).Error
-			}
-		}
+		e.markUnanswered(quizID, questionID, e.rushWinnerIDs(quizID, questionID))
 	} else if q.Required {
-		var pids []model.Participant
-		e.DB.Select("user_id").Where("quiz_id = ?", quizID).Find(&pids)
-		if len(pids) > 0 {
-			uids := make([]int64, len(pids))
-			for i, p := range pids {
-				uids[i] = p.UserID
-			}
-			var answered []int64
-			e.DB.Model(&model.Answer{}).
-				Where("quiz_id = ? AND question_id = ? AND user_id IN ?", quizID, questionID, uids).
-				Pluck("user_id", &answered)
-			ansSet := map[int64]bool{}
-			for _, u := range answered {
-				ansSet[u] = true
-			}
-			unanswered := []int64{}
-			for _, u := range uids {
-				if !ansSet[u] {
-					unanswered = append(unanswered, u)
-				}
-			}
-			if len(unanswered) > 0 {
-				records := make([]model.Answer, len(unanswered))
-				for i, u := range unanswered {
-					records[i] = model.Answer{
-						QuizID: quizID, QuestionID: questionID, UserID: u,
-						Answer: AnswerUnanswered, IsCorrect: false, Score: 0, Duration: 0, SubmittedAt: time.Now(),
-					}
-				}
-				_ = e.DB.Clauses(clause.OnConflict{DoNothing: true}).Create(&records).Error
-			}
-		}
+		var uids []int64
+		e.DB.Model(&model.Participant{}).Where("quiz_id = ?", quizID).Pluck("user_id", &uids)
+		e.markUnanswered(quizID, questionID, uids)
 	}
 
 	e.Hub.Broadcast(quizID, ws.EventQuestionCountd, &ws.CountdownData{
 		QuestionID: questionID, RemainSec: 0, DeadlineAt: nowMilli(),
 	})
 	e.broadcastStatistics(quizID, questionID)
+}
+
+// markUnanswered 给 targetIDs 中未提交者批量记未答（唯一索引幂等）
+func (e *Engine) markUnanswered(quizID, questionID int64, targetIDs []int64) {
+	if len(targetIDs) == 0 {
+		return
+	}
+	var answered []int64
+	e.DB.Model(&model.Answer{}).
+		Where("quiz_id = ? AND question_id = ? AND user_id IN ?", quizID, questionID, targetIDs).
+		Pluck("user_id", &answered)
+	ansSet := make(map[int64]bool, len(answered))
+	for _, u := range answered {
+		ansSet[u] = true
+	}
+	records := make([]model.Answer, 0, len(targetIDs))
+	for _, u := range targetIDs {
+		if !ansSet[u] {
+			records = append(records, model.Answer{
+				QuizID: quizID, QuestionID: questionID, UserID: u,
+				Answer: AnswerUnanswered, IsCorrect: false, Score: 0,
+				SubmittedAt: time.Now(),
+			})
+		}
+	}
+	if len(records) > 0 {
+		_ = e.DB.Clauses(clause.OnConflict{DoNothing: true}).Create(&records).Error
+	}
 }
 
 // ---------- 判分 ----------

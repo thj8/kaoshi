@@ -13,8 +13,8 @@ export interface QuizState extends SyncData {
   lastResult: any
   /** 是否已提交当前题 */
   submitted: boolean
-  /** 抢答状态：idle=等待抢答开始 active=可抢 won=成功 lost=失败 ended=本题结束 */
-  rushState: 'idle' | 'active' | 'won' | 'lost' | 'ended'
+  /** 抢答状态：idle=等待抢答开始 active=可抢 wait=已发出等待裁决 won=成功 lost=失败 ended=本题结束 */
+  rushState: 'idle' | 'active' | 'wait' | 'won' | 'lost' | 'ended'
   rushRank: number
 }
 
@@ -37,9 +37,6 @@ export const useQuizStore = defineStore('quiz', {
     rushRank: 0,
   }),
   getters: {
-    answeredCount(state): number {
-      return state.me?.answered ?? 0
-    },
     /** 当前题是否抢答题且我已获答 */
     iAmWinner(state): boolean {
       return state.my_rush_rank > 0
