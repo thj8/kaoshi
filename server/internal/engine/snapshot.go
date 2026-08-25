@@ -44,7 +44,7 @@ func (e *Engine) Snapshot(claims *auth.Claims) (*ws.SyncData, error) {
 	// 当前题目（剥离答案/解析）
 	if rt.curIndex >= 0 && rt.curIndex < len(rt.questions) {
 		q := rt.questions[rt.curIndex]
-		opts := rt.GetOptions(e, q.ID)
+		opts := rt.getOptionsLocked(e, q.ID)
 		brief := &ws.QuestionBrief{
 			ID:        q.ID,
 			Index:     rt.curIndex + 1,

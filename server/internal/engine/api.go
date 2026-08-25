@@ -32,7 +32,7 @@ func (e *Engine) CurrentQuestionInfo(quizID int64) *ws.QuestionBrief {
 		return nil
 	}
 	q := rt.questions[rt.curIndex]
-	opts := rt.GetOptions(e, q.ID)
+	opts := rt.getOptionsLocked(e, q.ID)
 	brief := &ws.QuestionBrief{
 		ID: q.ID, Index: rt.curIndex + 1, Total: len(rt.questions),
 		Type: q.Type, Content: q.Content, Score: q.Score,

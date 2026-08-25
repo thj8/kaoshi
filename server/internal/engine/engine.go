@@ -70,10 +70,15 @@ func (e *Engine) Get(quizID int64) (*Runtime, error) {
 	return rt, nil
 }
 
-// GetOptions 题目选项（缓存）
+// GetOptions 题目选项（缓存，外部调用，自带锁）
 func (rt *Runtime) GetOptions(e *Engine, questionID int64) []model.QuestionOption {
 	rt.mu.Lock()
 	defer rt.mu.Unlock()
+	return rt.getOptionsLocked(e, questionID)
+}
+
+// getOptionsLocked 内部版本：调用方必须已持有 rt.mu
+func (rt *Runtime) getOptionsLocked(e *Engine, questionID int64) []model.QuestionOption {
 	if opts, ok := rt.options[questionID]; ok {
 		return opts
 	}

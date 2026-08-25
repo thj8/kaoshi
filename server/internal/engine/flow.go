@@ -246,7 +246,7 @@ func (e *Engine) publishLocked(rt *Runtime, idx int) error {
 	}
 
 	// 广播题目（剥离答案）
-	opts := rt.GetOptions(e, q.ID)
+	opts := rt.getOptionsLocked(e, q.ID)
 	brief := &ws.QuestionBrief{
 		ID:        q.ID,
 		Index:     idx + 1,
@@ -317,7 +317,7 @@ func (e *Engine) forceCollect(quizID int64, questionID int64) {
 				for i, u := range unanswered {
 					records[i] = model.Answer{
 						QuizID: quizID, QuestionID: questionID, UserID: u,
-						Answer: AnswerUnanswered, IsCorrect: false, Score: 0, Duration: 0,
+						Answer: AnswerUnanswered, IsCorrect: false, Score: 0, Duration: 0, SubmittedAt: time.Now(),
 					}
 				}
 				_ = e.DB.Clauses(clause.OnConflict{DoNothing: true}).Create(&records).Error
@@ -362,7 +362,7 @@ func (e *Engine) SubmitAnswer(quizID, questionID, userID int64, answer string, d
 	}
 
 	// 规范化多选答案并校验选项合法
-	userAns, ok := normalizeAnswer(q.Type, answer, rt.GetOptions(e, q.ID))
+	userAns, ok := normalizeAnswer(q.Type, answer, rt.getOptionsLocked(e, q.ID))
 	if !ok {
 		return nil, errors.New("答案选项不合法")
 	}
@@ -385,6 +385,7 @@ func (e *Engine) SubmitAnswer(quizID, questionID, userID int64, answer string, d
 	rec := model.Answer{
 		QuizID: quizID, QuestionID: questionID, UserID: userID,
 		Answer: userAns, IsCorrect: isCorrect, Score: score, Duration: durationMs,
+		SubmittedAt: time.Now(),
 	}
 	if err := e.DB.Create(&rec).Error; err != nil {
 		return nil, errors.New("重复提交")
