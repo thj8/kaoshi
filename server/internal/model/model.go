@@ -49,7 +49,7 @@ type Quiz struct {
 	RushTime        int `gorm:"notNull;default:10" json:"rush_time"`        // 抢答窗口（秒）
 	RushAnswerTime  int `gorm:"notNull;default:20" json:"rush_answer_time"` // 抢答成功后答题时间（秒）
 	RushBonusScore  int `gorm:"notNull;default:5" json:"rush_bonus_score"`  // 抢答成功奖励分
-	RushWrongScore  int `gorm:"notNull;default:0" json:"rush_wrong_score"`  // 抢答题答错扣分（正数表示扣分值）
+	RushWrongScore  int `gorm:"notNull;default:0" json:"rush_wrong_score"`  // 抢答题答错是否扣分（>0 开启，扣本题对应分值）
 
 	CreatedAt time.Time  `json:"created_at"`
 	StartedAt *time.Time `json:"started_at"`
