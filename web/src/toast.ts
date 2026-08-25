@@ -6,7 +6,7 @@ export interface ToastItem {
   type: 'error' | 'success' | 'info'
 }
 
-const items = reactive<ToastItem[]>([])
+export const items = reactive<ToastItem[]>([])
 let seq = 0
 
 export function toast(msg: string, type: ToastItem['type'] = 'error') {
