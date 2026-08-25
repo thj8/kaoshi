@@ -120,16 +120,26 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 		return
 	}
 	var req struct {
+		Username string `json:"username" binding:"omitempty,min=2,max=32"`
 		Nickname string `json:"nickname" binding:"omitempty,min=1,max=32"`
-		Password string `json:"password" binding:"omitempty,min=4,max=64"`
+		Password string `json:"password" binding:"omitempty,min=10,max=64"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		fail(c, 400, "参数不合法")
+		fail(c, 400, "参数不合法：密码至少 10 位")
 		return
 	}
-	if req.Nickname == "" && req.Password == "" {
-		fail(c, 400, "请填写新昵称或新密码")
+	if req.Username == "" && req.Nickname == "" && req.Password == "" {
+		fail(c, 400, "请至少填写一项")
 		return
+	}
+	if req.Username != "" && req.Username != user.Username {
+		var cnt int64
+		h.DB.Model(&model.User{}).Where("username = ? AND id != ?", req.Username, user.ID).Count(&cnt)
+		if cnt > 0 {
+			fail(c, 400, "该用户名已存在")
+			return
+		}
+		user.Username = req.Username
 	}
 	if req.Nickname != "" {
 		var cnt int64

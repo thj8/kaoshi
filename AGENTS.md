@@ -63,6 +63,7 @@ npm run build               # 类型检查 + 构建（vue-tsc + vite）
 - 后端 API 直连：`http://<服务器IP>:18080`
 - 用户端 `/join`，管理端 `/admin/login`（admin，密码在 `.env` 的 `ADMIN_PASS`，不入库）
 - 容器日志：`docker compose logs -f server` / `web`；重置测试数据见 README「数据重置」
+- **测试数据保护（硬性约束）**：不要清除/重置数据库中的测试/模拟数据（包括 E2E 产生的数据），除非用户明确要求
 
 ## 环境注意事项（重要，容易踩坑）
 
