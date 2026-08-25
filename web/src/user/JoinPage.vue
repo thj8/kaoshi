@@ -1,8 +1,9 @@
 <template>
-  <div class="page" style="max-width: 480px; padding-top: 48px">
-    <h2 style="margin-bottom: 16px">加入答题</h2>
-    <div class="card">
-      <p class="text-dim">用户端入口（阶段 3 实现）</p>
+  <div class="page" style="max-width: 480px; padding-top: 10vh">
+    <div class="card" style="padding: 32px">
+      <h1 style="font-size: 22px; margin-bottom: 4px">📝 加入答题</h1>
+      <p class="text-dim" style="margin-bottom: 24px">输入昵称与邀请码，实时作答</p>
+      <p class="text-dim">（阶段 3 实现）</p>
     </div>
   </div>
 </template>

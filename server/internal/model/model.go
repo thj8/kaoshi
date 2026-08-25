@@ -28,31 +28,34 @@ const (
 
 // 答题活动
 type Quiz struct {
-	ID          int64     `gorm:"primaryKey;autoIncrement" json:"id"`
-	Title       string    `gorm:"size:128;notNull" json:"title"`
-	Description string    `gorm:"size:1024" json:"description"`
-	Status      string    `gorm:"size:16;notNull;default:WAITING;index" json:"status"`
-	Mode        string    `gorm:"size:16;notNull;default:normal" json:"mode"`
-	InviteCode  string    `gorm:"size:16;notNull;uniqueIndex" json:"invite_code"`
+	ID          int64  `gorm:"primaryKey;autoIncrement" json:"id"`
+	Title       string `gorm:"size:128;notNull" json:"title"`
+	Description string `gorm:"size:1024" json:"description"`
+	Status      string `gorm:"size:16;notNull;default:WAITING;index" json:"status"`
+	Mode        string `gorm:"size:16;notNull;default:normal" json:"mode"`
+	InviteCode  string `gorm:"size:16;notNull;uniqueIndex" json:"invite_code"`
 
 	// 全局配置
-	TotalTime       int  `gorm:"notNull;default:0" json:"total_time"`       // 总答题时间（秒，0=不限）
+	TotalTime       int  `gorm:"notNull;default:0" json:"total_time"`         // 总答题时间（秒，0=不限）
 	PerQuestionTime int  `gorm:"notNull;default:30" json:"per_question_time"` // 每题默认答题时间（秒）
-	RushEnabled     bool `gorm:"notNull;default:false" json:"rush_enabled"`    // 是否开启抢答
-	ShowAnswer      bool `gorm:"notNull;default:true" json:"show_answer"`      // 是否显示正确答案
-	ShowAnalysis    bool `gorm:"notNull;default:true" json:"show_analysis"`    // 是否显示解析
-	ShowRanking     bool `gorm:"notNull;default:true" json:"show_ranking"`     // 是否显示排行榜
+	RushEnabled     bool `gorm:"notNull;default:false" json:"rush_enabled"`   // 是否开启抢答
+	ShowAnswer      bool `gorm:"notNull;default:true" json:"show_answer"`     // 是否显示正确答案
+	ShowAnalysis    bool `gorm:"notNull;default:true" json:"show_analysis"`   // 是否显示解析
+	ShowRanking     bool `gorm:"notNull;default:true" json:"show_ranking"`    // 是否显示排行榜
 
 	// 抢答配置
-	RushWinnerCount int `gorm:"notNull;default:1" json:"rush_winner_count"`  // 每题抢答名额
-	RushTime        int `gorm:"notNull;default:10" json:"rush_time"`         // 抢答窗口（秒）
-	RushAnswerTime  int `gorm:"notNull;default:20" json:"rush_answer_time"`  // 抢答成功后答题时间（秒）
-	RushBonusScore  int `gorm:"notNull;default:5" json:"rush_bonus_score"`   // 抢答成功奖励分
-	RushWrongScore  int `gorm:"notNull;default:0" json:"rush_wrong_score"`   // 抢答题答错扣分（正数表示扣分值）
+	RushWinnerCount int `gorm:"notNull;default:1" json:"rush_winner_count"` // 每题抢答名额
+	RushTime        int `gorm:"notNull;default:10" json:"rush_time"`        // 抢答窗口（秒）
+	RushAnswerTime  int `gorm:"notNull;default:20" json:"rush_answer_time"` // 抢答成功后答题时间（秒）
+	RushBonusScore  int `gorm:"notNull;default:5" json:"rush_bonus_score"`  // 抢答成功奖励分
+	RushWrongScore  int `gorm:"notNull;default:0" json:"rush_wrong_score"`  // 抢答题答错扣分（正数表示扣分值）
 
 	CreatedAt time.Time  `json:"created_at"`
 	StartedAt *time.Time `json:"started_at"`
 	EndedAt   *time.Time `json:"ended_at"`
+
+	// 关联（不入库，仅查询用）
+	Questions []Question `gorm:"foreignKey:QuizID" json:"questions,omitempty"`
 }
 
 // 题型
@@ -82,21 +85,21 @@ type Question struct {
 type QuestionOption struct {
 	ID         int64  `gorm:"primaryKey;autoIncrement" json:"id"`
 	QuestionID int64  `gorm:"notNull;index" json:"question_id"`
-	Label      string `gorm:"size:8;notNull" json:"label"`   // A/B/C/D
+	Label      string `gorm:"size:8;notNull" json:"label"` // A/B/C/D
 	Content    string `gorm:"size:256;notNull" json:"content"`
 	Sort       int    `gorm:"notNull" json:"sort"`
 }
 
 // 参与者（一场活动的成绩主体）
 type Participant struct {
-	ID            int64     `gorm:"primaryKey;autoIncrement" json:"id"`
-	QuizID        int64     `gorm:"notNull;uniqueIndex:idx_quiz_user" json:"quiz_id"`
-	UserID        int64     `gorm:"notNull;uniqueIndex:idx_quiz_user" json:"user_id"`
-	Score         int       `gorm:"notNull;default:0" json:"score"`
-	CorrectCount  int       `gorm:"notNull;default:0" json:"correct_count"`
-	WrongCount    int       `gorm:"notNull;default:0" json:"wrong_count"`
-	JoinedAt      time.Time `json:"joined_at"`
-	FinishedAt    *time.Time `json:"finished_at"`
+	ID           int64      `gorm:"primaryKey;autoIncrement" json:"id"`
+	QuizID       int64      `gorm:"notNull;uniqueIndex:idx_quiz_user" json:"quiz_id"`
+	UserID       int64      `gorm:"notNull;uniqueIndex:idx_quiz_user" json:"user_id"`
+	Score        int        `gorm:"notNull;default:0" json:"score"`
+	CorrectCount int        `gorm:"notNull;default:0" json:"correct_count"`
+	WrongCount   int        `gorm:"notNull;default:0" json:"wrong_count"`
+	JoinedAt     time.Time  `json:"joined_at"`
+	FinishedAt   *time.Time `json:"finished_at"`
 }
 
 // 答题记录（quiz+question+user 唯一，防重复提交/计分）

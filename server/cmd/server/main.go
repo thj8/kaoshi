@@ -11,13 +11,16 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"kaoshi/internal/auth"
 	"kaoshi/internal/config"
+	router "kaoshi/internal/handler"
 	"kaoshi/internal/middleware"
 	"kaoshi/internal/store"
 )
 
 func main() {
 	cfg := config.Load()
+	auth.Init(cfg.JWTSecret, cfg.TokenTTL)
 
 	db, err := store.NewDB(cfg.MySQLDSN)
 	if err != nil {
@@ -27,7 +30,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("init redis failed: %v", err)
 	}
-	_, _ = db, rdb // 阶段 2+ 使用
+	_ = rdb
 
 	if os.Getenv("KAOSHI_ENV") == "dev" {
 		gin.SetMode(gin.DebugMode)
@@ -37,14 +40,7 @@ func main() {
 	r := gin.New()
 	r.Use(gin.Recovery(), middleware.CORS(cfg.OriginAllow))
 
-	r.GET("/api/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"status": "ok",
-			"time":   time.Now().Unix(),
-		})
-	})
-
-	// TODO: 注册业务路由（阶段 2/3）
+	router.Register(r, cfg, db)
 
 	srv := &http.Server{Addr: cfg.Addr, Handler: r}
 	go func() {
