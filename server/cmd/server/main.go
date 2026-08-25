@@ -26,7 +26,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("init mysql failed: %v", err)
 	}
-	rdb, err := store.NewRedis(cfg.RedisAddr, cfg.RedisDB)
+	rdb, err := store.NewRedis(cfg.RedisAddr, cfg.RedisPass, cfg.RedisDB)
 	if err != nil {
 		log.Fatalf("init redis failed: %v", err)
 	}

@@ -9,8 +9,8 @@ import (
 )
 
 // NewRedis 初始化 Redis 连接（含重试）
-func NewRedis(addr string, db int) (*redis.Client, error) {
-	rdb := redis.NewClient(&redis.Options{Addr: addr, DB: db})
+func NewRedis(addr, pass string, db int) (*redis.Client, error) {
+	rdb := redis.NewClient(&redis.Options{Addr: addr, Password: pass, DB: db})
 	var err error
 	for i := 0; i < 30; i++ {
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)

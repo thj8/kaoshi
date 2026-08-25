@@ -45,7 +45,7 @@ kaoshi/
 ```bash
 go build ./...              # 编译检查
 go vet ./...                # 静态检查
-go run ./cmd/server         # 本地启动（依赖本地 MySQL:13306 / Redis:16379，或先起 docker）
+go run ./cmd/server         # 本地启动（需设 KAOSHI_JWT_SECRET/KAOSHI_ADMIN_PASS，依赖本地 MySQL:13306 / Redis:16379，或先起 docker）
 ```
 
 前端（在 `web/` 下）：
@@ -71,7 +71,7 @@ npm run build               # 类型检查 + 构建（vue-tsc + vite）
 - 全局 `~/.npmrc` 指向内网 Nexus 且配置了 `omit=dev`（npm 不装 devDependencies，会导致 vite/vue-tsc 缺失）。
   **`web/.npmrc` 里的 `omit=` 覆盖项必须保留**，删掉它 `npm install` 会静默装不全
 - 本机 Node 24 / npm 11；`package.json` 中 typescript 固定 ~5.8，勿升级到 6.x（与 vue-tsc 冲突）
-- 宿主机端口均做了偏移避免冲突：MySQL 13306、Redis 16379、后端 18080、前端容器 13000（均绑 0.0.0.0，外部可直接访问）
+- 宿主机端口均做了偏移避免冲突：后端 18080、前端容器 13000 绑 0.0.0.0（外部可访问）；MySQL 13306、Redis 16379 仅绑 127.0.0.1（外部不可达，密码为随机值）
 - **前端容器禁止写死 API 地址**：nginx 反代 `/api`、`/ws`，前端一律用相对路径（`VITE_API_BASE` 留空），否则外部 IP 访问会指向用户自己的 localhost
 
 ## 领域不变量（写代码必须遵守）
