@@ -121,7 +121,7 @@ h3 {
 .input {
   width: 100%;
   background: var(--bg-soft);
-  border: 1px solid transparent;
+  border: 1px solid rgba(0, 0, 0, 0.16);
   border-radius: 12px;
   color: var(--text);
   padding: 12px 14px;
@@ -138,6 +138,7 @@ h3 {
   background: var(--card);
   border-color: var(--primary);
   box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.14);
+  outline: none;
 }
 
 .input::placeholder {

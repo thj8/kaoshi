@@ -3,17 +3,10 @@
     <div class="auth-box">
       <div class="mark">答</div>
       <h1>理论答题系统</h1>
-      <p class="sub">使用管理员分配的账号登录</p>
 
-      <form @submit.prevent="submit">
-        <div class="field">
-          <label>用户名</label>
-          <input v-model="username" class="input" placeholder="请输入用户名" autocomplete="username" />
-        </div>
-        <div class="field">
-          <label>密码</label>
-          <input v-model="password" class="input" type="password" placeholder="请输入密码" autocomplete="current-password" />
-        </div>
+      <form class="auth-card" @submit.prevent="submit">
+        <input v-model="username" class="input" placeholder="用户名" autocomplete="username" />
+        <input v-model="password" class="input" type="password" placeholder="密码" autocomplete="current-password" />
         <p v-if="err" class="err">{{ err }}</p>
         <button class="btn btn-primary submit" :disabled="loading">
           {{ loading ? '登录中…' : '登录' }}
@@ -115,30 +108,29 @@ h1 {
   font-weight: 700;
   letter-spacing: -0.02em;
 }
-.sub {
-  margin: 8px 0 30px;
-  color: var(--text-dim);
-  font-size: 15px;
-}
-.field {
+.auth-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  box-shadow: var(--shadow);
+  padding: 20px;
+  margin-top: 26px;
   text-align: left;
-  margin-bottom: 16px;
-}
-.field label {
-  display: block;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-dim);
-  margin-bottom: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: rise 0.45s ease;
 }
 .err {
   color: var(--danger);
   font-size: 14px;
-  margin-bottom: 12px;
 }
 .submit {
   width: 100%;
-  margin-top: 6px;
+  margin-top: 4px;
+}
+@keyframes rise {
+  from { opacity: 0; transform: translateY(10px); }
 }
 .hint {
   margin-top: 18px;
