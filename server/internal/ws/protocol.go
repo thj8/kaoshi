@@ -43,8 +43,10 @@ type SyncData struct {
 	Status     string          `json:"status"`      // quiz 状态机
 	Question   *QuestionBrief  `json:"question"`    // 当前题目（无答案）
 	DeadlineAt int64           `json:"deadline_at"` // 当前题截止毫秒时间戳（0=无倒计时）
-	RushActive bool            `json:"rush_active"` // 抢答进行中
-	Me         *MeInfo         `json:"me"`          // 本人信息（用户连接时）
+	RushActive  bool            `json:"rush_active"` // 抢答进行中
+	MyRushRank  int             `json:"my_rush_rank"` // 0=未抢 -1=失败 >0=成功名次
+	RushWinners []RushWinner    `json:"rush_winners"` // 当前抢答成功者（进行中/已结束）
+	Me          *MeInfo         `json:"me"`          // 本人信息（用户连接时）
 	ServerNow  int64           `json:"server_now"`  // 服务器当前毫秒时间
 }
 
@@ -128,14 +130,33 @@ type RankingData struct {
 
 type RushStartData struct {
 	QuestionID int64 `json:"question_id"`
-	Winners    int   `json:"winners"`  // 名额
+	Winners    int   `json:"winners"`     // 名额
 	DeadlineAt int64 `json:"deadline_at"` // 抢答截止毫秒
+	ServerNow  int64 `json:"server_now"`
+}
+
+// RushWinner 抢答成功者
+type RushWinner struct {
+	UserID   int64  `json:"user_id"`
+	Nickname string `json:"nickname"`
+	Rank     int    `json:"rank"`
+	Bonus    int    `json:"bonus"`
+}
+
+type RushEndData struct {
+	QuestionID       int64        `json:"question_id"`
+	Winners          []RushWinner `json:"winners"`
+	AnswerDeadlineAt int64        `json:"answer_deadline_at"` // 获答者答题截止（0=无人获答）
+	ServerNow        int64        `json:"server_now"`
 }
 
 type RushResultData struct {
 	QuestionID int64  `json:"question_id"`
-	Rank       int    `json:"rank"`
+	Rank       int    `json:"rank"`                 // >0 成功名次；0 失败
 	Nickname   string `json:"nickname"`
+	Bonus      int    `json:"bonus"`                // 抢答奖励分（成功时）
+	Score      int    `json:"score"`                // 累计总分（成功时）
+	Reason     string `json:"reason,omitempty"`     // 失败原因
 }
 
 type ErrorData struct {

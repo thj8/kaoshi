@@ -68,10 +68,36 @@
         <span class="tag">{{ typeText(store.question.type) }}</span>
         <span class="tag">{{ store.question.score }} 分</span>
         <span class="tag">{{ store.question.required ? '必答' : '可跳过' }}</span>
+        <span v-if="isRushQ" class="tag" style="color: var(--warn)">⚡ 抢答题</span>
       </div>
       <h2 class="q-content">{{ store.question.content }}</h2>
 
-      <div class="opts">
+      <!-- 抢答面板（抢答窗口进行中 / 本题为抢答题且我未获答） -->
+      <div v-if="store.status === 'RUSHING' || rushLocked" class="rush-panel">
+        <!-- 窗口进行中：大抢答按钮四态 -->
+        <template v-if="store.status === 'RUSHING'">
+          <button v-if="store.rushState === 'active'" class="rush-btn active" @click="doRush">
+            🔥<span>立即抢答</span>
+          </button>
+          <div v-else-if="store.rushState === 'won'" class="rush-state won">
+            🎉 抢答成功！<small>第 {{ store.rushRank }} 名 · 你获得本题答题资格（+{{ lastRushBonus }}分）</small>
+          </div>
+          <div v-else-if="store.rushState === 'lost'" class="rush-state lost">
+            很遗憾<small>本题抢答资格已被其他用户获得</small>
+          </div>
+          <div v-else class="rush-state wait">等待抢答...<small>手速决定胜负</small></div>
+          <p class="text-dim" style="margin-top: 10px; font-size: 12px">
+            已抢 {{ store.rush_winners?.length || 0 }} / {{ rushTotal }} · 剩余 {{ remainSec }}s
+          </p>
+        </template>
+        <!-- 窗口已结束但我是非获答者 -->
+        <div v-else-if="rushLocked" class="rush-state ended">
+          本题抢答结束<small>获答者：<template v-for="(w, i) in store.rush_winners" :key="w.user_id"><template v-if="i">、</template>{{ w.nickname }}</template></small>
+        </div>
+      </div>
+
+      <!-- 选项（非获答者在抢答题中不可操作） -->
+      <div class="opts" :class="{ dimmed: optionsLocked }">
         <button
           v-for="o in store.question.options"
           :key="o.label"
@@ -80,7 +106,7 @@
             sel: selected.includes(o.label),
             correct: revealed && reveal?.correct_answer?.includes(o.label),
             wrong: revealed && selected.includes(o.label) && !reveal?.correct_answer?.includes(o.label),
-            disabled: submitted || timeUp,
+            disabled: submitted || timeUp || optionsLocked,
           }"
           @click="toggle(o.label)"
         >
@@ -92,7 +118,7 @@
       <!-- 判分反馈 -->
       <div v-if="lastResult" class="feedback" :class="lastResult.is_correct ? 'good' : 'bad'">
         <template v-if="lastResult.is_correct">✅ 回答正确！ +{{ lastResult.score }} 分（总分 {{ lastResult.total_score }}）</template>
-        <template v-else>❌ 回答错误 +0 分（总分 {{ lastResult.total_score }}）</template>
+        <template v-else>❌ 回答错误 {{ lastResult.score }} 分（总分 {{ lastResult.total_score }}）</template>
       </div>
 
       <!-- 公布答案反馈 -->
@@ -111,9 +137,9 @@
 
       <!-- 底部操作 -->
       <div class="actions">
-        <button v-if="!store.question.required && !submitted" class="btn btn-ghost" style="flex: 1" @click="skip">跳过本题</button>
+        <button v-if="!store.question.required && !submitted && !optionsLocked" class="btn btn-ghost" style="flex: 1" @click="skip">跳过本题</button>
         <button
-          v-if="!submitted && !timeUp"
+          v-if="!submitted && !timeUp && !optionsLocked"
           class="btn btn-primary"
           style="flex: 2"
           :disabled="selected.length === 0"
@@ -171,11 +197,24 @@ const lastResult = ref<AnswerResultData | null>(null)
 const ranking = ref<RankingItem[]>([])
 const result = ref<Record<string, any> | null>(null)
 const showRanking = ref(false)
+const lastRushBonus = ref(0)
+const rushTotal = ref(1)
 
 /** 服务器时间偏移（server_now - Date.now()） */
 let serverOffset = 0
 
 const remainSec = computed(() => Math.ceil(store.remainMs / 1000))
+
+/** 抢答窗口已结束且我不是获答者：锁定作答 */
+const rushLocked = computed(
+  () => store.status !== 'RUSHING' && (store.rush_winners?.length ?? 0) > 0 && store.my_rush_rank <= 0 && !revealed.value
+)
+/** 选项是否可操作（抢答未获答 / 窗口进行中且我未抢中） */
+const optionsLocked = computed(
+  () => rushLocked.value || (store.status === 'RUSHING' && !store.iAmWinner)
+)
+/** 是否为抢答题（窗口进行中，或已有获答名单） */
+const isRushQ = computed(() => store.status === 'RUSHING' || (store.rush_winners?.length ?? 0) > 0)
 
 function syncRemain() {
   if (!store.deadline_at) {
@@ -275,6 +314,46 @@ function handleEvent(msg: WSMessage) {
     case Ev.RankingUpdate:
       ranking.value = d.items || []
       break
+
+    case Ev.RushStart:
+      store.status = 'RUSHING'
+      store.rush_active = true
+      store.rushState = store.rushState === 'idle' || store.rushState === 'ended' ? 'active' : store.rushState
+      store.deadline_at = d.deadline_at || 0
+      store.remainMs = d.deadline_at ? Math.max(0, d.deadline_at - Date.now() - serverOffset) : 0
+      rushTotal.value = d.winners || 1
+      // 新窗口：重置本人抢答状态（除非 sync 已告知成功）
+      if (store.my_rush_rank <= 0) {
+        store.my_rush_rank = 0
+        if (store.rushState !== 'active') store.rushState = 'active'
+      }
+      resetQuestionUI()
+      break
+
+    case Ev.RushSuccess:
+      store.rushState = 'won'
+      store.rushRank = d.rank
+      store.my_rush_rank = d.rank
+      lastRushBonus.value = d.bonus
+      if (store.me) store.me.score = d.score
+      break
+
+    case Ev.RushFailed:
+      store.rushState = 'lost'
+      store.my_rush_rank = -1
+      break
+
+    case Ev.RushEnd:
+      store.status = 'ANSWERING'
+      store.rush_active = false
+      store.rush_winners = d.winners || []
+      if (store.rushState !== 'won') store.rushState = 'ended'
+      // 获答者答题倒计时
+      store.deadline_at = d.answer_deadline_at || 0
+      store.remainMs = d.answer_deadline_at ? Math.max(0, d.answer_deadline_at - Date.now() - serverOffset) : 0
+      timeUp.value = false
+      if (!store.iAmWinner) submitted.value = true // 非获答者不再提交
+      break
   }
 }
 
@@ -285,6 +364,7 @@ function resetQuestionUI() {
   timeUp.value = false
   reveal.value = null
   lastResult.value = null
+  // 抢答状态由 sync/rush 事件单独维护，这里不重置 my_rush_rank
 }
 
 function toggle(label: string) {
@@ -298,6 +378,26 @@ function toggle(label: string) {
     if (i >= 0) selected.value.splice(i, 1)
     else selected.value.push(label)
     selected.value.sort()
+  }
+}
+
+async function doRush() {
+  if (!store.question || store.rushState !== 'active') return
+  store.rushState = 'wait' as any // 防连点，等待服务器裁决
+  try {
+    await userApi.rush(store.question.id)
+    // 结果由 WS rush:success / rush:failed 事件驱动 UI
+  } catch (e: any) {
+    const msg = e?.response?.data?.msg || ''
+    if (msg.includes('已抢答')) {
+      // 幂等：已有记录，等 WS 事件或恢复为 won/lost
+    } else if (msg.includes('很遗憾') || msg.includes('资格已被')) {
+      store.rushState = 'lost'
+      store.my_rush_rank = -1
+    } else {
+      store.rushState = 'active' // 可重试（如网络错误）
+      alert(msg || '抢答失败，请重试')
+    }
   }
 }
 
@@ -445,6 +545,78 @@ function formatDur(sec: number) {
 }
 .q-card {
   padding: 22px;
+}
+/* 抢答面板 */
+.rush-panel {
+  margin-bottom: 18px;
+}
+.rush-btn {
+  width: 100%;
+  padding: 34px 20px;
+  border: none;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #ff7062, #e0404f);
+  color: #fff;
+  font-size: 26px;
+  font-weight: 900;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  box-shadow: 0 8px 28px rgba(224, 64, 79, 0.4);
+  animation: rushPulse 1.2s ease-in-out infinite;
+}
+.rush-btn:active {
+  transform: scale(0.96);
+}
+.rush-btn small {
+  font-size: 13px;
+  font-weight: 500;
+  opacity: 0.9;
+}
+@keyframes rushPulse {
+  0%, 100% { box-shadow: 0 8px 28px rgba(224, 64, 79, 0.35); }
+  50% { box-shadow: 0 8px 36px rgba(224, 64, 79, 0.65); transform: scale(1.015); }
+}
+.rush-state {
+  border-radius: 16px;
+  padding: 26px 20px;
+  text-align: center;
+  font-size: 19px;
+  font-weight: 800;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.rush-state small {
+  font-size: 13px;
+  font-weight: 500;
+  opacity: 0.85;
+}
+.rush-state.won {
+  background: rgba(46, 204, 143, 0.14);
+  color: var(--success);
+  border: 1px solid var(--success);
+}
+.rush-state.lost {
+  background: rgba(255, 93, 108, 0.12);
+  color: var(--danger);
+  border: 1px solid var(--danger);
+}
+.rush-state.wait {
+  background: var(--bg-soft);
+  color: var(--text-dim);
+  border: 1px dashed var(--border);
+}
+.rush-state.ended {
+  background: var(--bg-soft);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+}
+.opts.dimmed {
+  opacity: 0.45;
+  pointer-events: none;
 }
 .q-meta {
   display: flex;

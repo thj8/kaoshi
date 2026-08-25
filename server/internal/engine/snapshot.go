@@ -41,6 +41,27 @@ func (e *Engine) Snapshot(claims *auth.Claims) (*ws.SyncData, error) {
 		ServerNow:  nowMilli(),
 	}
 
+	// 抢答状态恢复（进行中或已结束均返回获答名单与本人抢答结果）
+	if rt.curIndex >= 0 && rt.curIndex < len(rt.questions) {
+		cq := rt.questions[rt.curIndex]
+		if rt.quiz.Status == model.QuizStatusRushing {
+			data.DeadlineAt = rt.rushDeadline
+			data.RushWinners = e.redisWinners(rt, cq.ID)
+			if claims.Role == auth.RoleUser {
+				data.MyRushRank = e.myRushRank(quizID, cq.ID, claims.UserID)
+			}
+		} else if e.isRushQuestion(quizID, cq.ID) {
+			data.RushWinners = e.rushWinnersFromDB(quizID, cq.ID, rt.quiz.RushBonusScore)
+			if claims.Role == auth.RoleUser {
+				var rec model.RushRecord
+				if e.DB.Where("quiz_id = ? AND question_id = ? AND user_id = ?", quizID, cq.ID, claims.UserID).
+					First(&rec); rec.Rank > 0 {
+					data.MyRushRank = rec.Rank
+				}
+			}
+		}
+	}
+
 	// 当前题目（剥离答案/解析）
 	if rt.curIndex >= 0 && rt.curIndex < len(rt.questions) {
 		q := rt.questions[rt.curIndex]

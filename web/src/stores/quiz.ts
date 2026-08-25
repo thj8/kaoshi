@@ -13,7 +13,7 @@ export interface QuizState extends SyncData {
   lastResult: any
   /** 是否已提交当前题 */
   submitted: boolean
-  /** 抢答状态 */
+  /** 抢答状态：idle=等待抢答开始 active=可抢 won=成功 lost=失败 ended=本题结束 */
   rushState: 'idle' | 'active' | 'won' | 'lost' | 'ended'
   rushRank: number
 }
@@ -25,6 +25,8 @@ export const useQuizStore = defineStore('quiz', {
     question: null,
     deadline_at: 0,
     rush_active: false,
+    my_rush_rank: 0,
+    rush_winners: null,
     me: null,
     server_now: 0,
     wsStatus: 'closed',
@@ -38,6 +40,10 @@ export const useQuizStore = defineStore('quiz', {
     answeredCount(state): number {
       return state.me?.answered ?? 0
     },
+    /** 当前题是否抢答题且我已获答 */
+    iAmWinner(state): boolean {
+      return state.my_rush_rank > 0
+    },
   },
   actions: {
     applySync(sync: SyncData) {
@@ -46,12 +52,22 @@ export const useQuizStore = defineStore('quiz', {
       this.question = sync.question
       this.deadline_at = sync.deadline_at
       this.rush_active = sync.rush_active
+      this.my_rush_rank = sync.my_rush_rank || 0
+      this.rush_winners = sync.rush_winners
       this.me = sync.me
       this.server_now = sync.server_now
       this.submitted = false
       // 恢复抢答状态
-      if (this.status === 'RUSHING') this.rushState = 'active'
-      else if (this.rushState === 'active') this.rushState = 'ended'
+      if (sync.status === 'RUSHING') {
+        this.rushState = sync.my_rush_rank > 0 ? 'won' : sync.my_rush_rank < 0 ? 'lost' : 'active'
+      } else if (sync.my_rush_rank > 0) {
+        this.rushState = 'won'
+      } else if (sync.rush_winners && sync.rush_winners.length > 0) {
+        this.rushState = 'ended'
+      } else {
+        this.rushState = 'idle'
+      }
+      this.rushRank = sync.my_rush_rank || 0
       this.remainMs = this.deadline_at ? Math.max(0, this.deadline_at - Date.now()) : 0
     },
   },

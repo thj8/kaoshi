@@ -37,7 +37,8 @@ type Runtime struct {
 
 	// 抢答窗口
 	rushDeadline int64
-	tickRush     *ticker
+	rushTimer   *SyncTimer
+	tickRush    *ticker
 }
 
 func New(db *gorm.DB, rdb *redis.Client, hub *ws.Hub) *Engine {

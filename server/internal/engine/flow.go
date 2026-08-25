@@ -57,6 +57,8 @@ func (e *Engine) Pause(quizID int64) error {
 	rt.mu.Lock()
 	defer rt.mu.Unlock()
 	switch rt.quiz.Status {
+	case model.QuizStatusRushing:
+		return errors.New("抢答进行中，不可暂停")
 	case model.QuizStatusAnswering:
 		// 保留剩余时间
 		rt.pausedRemain = rt.timer.Pause().Milliseconds()
@@ -110,6 +112,11 @@ func (e *Engine) Next(quizID int64) error {
 	if rt.quiz.Status == model.QuizStatusFinished {
 		return ErrAlreadyEnded
 	}
+	if rt.quiz.Status == model.QuizStatusRushing {
+		if err := e.rushEndLocked(rt); err != nil {
+			return err
+		}
+	}
 	next := rt.curIndex + 1
 	if next >= len(rt.questions) {
 		rt.mu.Unlock()
@@ -131,6 +138,9 @@ func (e *Engine) Previous(quizID int64) error {
 	if rt.quiz.Status == model.QuizStatusWaiting || rt.quiz.Status == model.QuizStatusFinished {
 		return ErrNotRunning
 	}
+	if rt.quiz.Status == model.QuizStatusRushing {
+		return errors.New("抢答进行中，请先结束抢答")
+	}
 	prev := rt.curIndex - 1
 	if prev < 0 {
 		return errors.New("已经是第一题")
@@ -148,6 +158,11 @@ func (e *Engine) Reveal(quizID int64) error {
 	defer rt.mu.Unlock()
 	if rt.curIndex < 0 || rt.curIndex >= len(rt.questions) {
 		return ErrNotRunning
+	}
+	if rt.quiz.Status == model.QuizStatusRushing {
+		if err := e.rushEndLocked(rt); err != nil {
+			return err
+		}
 	}
 	q := rt.questions[rt.curIndex]
 	rt.stopTimer()
@@ -196,7 +211,10 @@ func (e *Engine) End(quizID int64) error {
 	}
 	rt.stopTimer()
 	rt.stopTicker()
+	rt.stopRushTimer()
+	rt.stopRushTicker()
 	rt.deadline = 0
+	rt.rushDeadline = 0
 	now := time.Now()
 	rt.quiz.Status = model.QuizStatusFinished
 	rt.quiz.EndedAt = &now
@@ -220,11 +238,14 @@ func (e *Engine) publishLocked(rt *Runtime, idx int) error {
 	quizID := rt.quiz.ID
 	q := rt.questions[idx]
 
-	// 停掉旧计时
+	// 停掉旧计时（含抢答窗口）
 	rt.stopTimer()
 	rt.stopTicker()
+	rt.stopRushTimer()
+	rt.stopRushTicker()
 	rt.curIndex = idx
 	rt.deadline = 0
+	rt.rushDeadline = 0
 
 	if rt.quiz.Status != model.QuizStatusFinished {
 		rt.quiz.Status = model.QuizStatusAnswering
@@ -289,8 +310,37 @@ func (e *Engine) forceCollect(quizID int64, questionID int64) {
 	rt.stopTicker()
 	rt.deadline = 0
 
-	// 必答题：给未提交者记未答（事务批插，唯一索引幂等）
-	if q.Required {
+	// 抢答题：只有抢答成功者需要作答（未答者记未答）；非抢答必答题：全员记未答
+	if e.isRushQuestion(quizID, questionID) {
+		winnerIDs := e.rushWinnerIDs(quizID, questionID)
+		if len(winnerIDs) > 0 {
+			var answered []int64
+			e.DB.Model(&model.Answer{}).
+				Where("quiz_id = ? AND question_id = ? AND user_id IN ?", quizID, questionID, winnerIDs).
+				Pluck("user_id", &answered)
+			ansSet := map[int64]bool{}
+			for _, u := range answered {
+				ansSet[u] = true
+			}
+			unanswered := []int64{}
+			for _, u := range winnerIDs {
+				if !ansSet[u] {
+					unanswered = append(unanswered, u)
+				}
+			}
+			if len(unanswered) > 0 {
+				records := make([]model.Answer, len(unanswered))
+				for i, u := range unanswered {
+					records[i] = model.Answer{
+						QuizID: quizID, QuestionID: questionID, UserID: u,
+						Answer: AnswerUnanswered, IsCorrect: false, Score: 0,
+						SubmittedAt: time.Now(),
+					}
+				}
+				_ = e.DB.Clauses(clause.OnConflict{DoNothing: true}).Create(&records).Error
+			}
+		}
+	} else if q.Required {
 		var pids []model.Participant
 		e.DB.Select("user_id").Where("quiz_id = ?", quizID).Find(&pids)
 		if len(pids) > 0 {
@@ -345,13 +395,24 @@ func (e *Engine) SubmitAnswer(quizID, questionID, userID int64, answer string, d
 	if rt.quiz.Status == model.QuizStatusFinished {
 		return nil, ErrAlreadyEnded
 	}
-	if rt.quiz.Status != model.QuizStatusAnswering && rt.quiz.Status != model.QuizStatusRevealing {
+	if rt.quiz.Status != model.QuizStatusAnswering {
 		return nil, errors.New("当前不可作答")
 	}
 	if rt.curIndex < 0 || rt.curIndex >= len(rt.questions) || rt.questions[rt.curIndex].ID != questionID {
 		return nil, errors.New("当前题目不匹配")
 	}
 	q := rt.questions[rt.curIndex]
+
+	// 抢答题：仅抢答成功者可作答
+	isRush := e.isRushQuestion(quizID, questionID)
+	if isRush {
+		var cnt int64
+		e.DB.Model(&model.RushRecord{}).
+			Where("quiz_id = ? AND question_id = ? AND user_id = ?", quizID, questionID, userID).Count(&cnt)
+		if cnt == 0 {
+			return nil, errors.New("未获得本题答题资格")
+		}
+	}
 
 	// 倒计时已过（宽限 1.5s 网络延迟）
 	if rt.deadline > 0 && nowMilli() > rt.deadline+1500 {
@@ -380,6 +441,8 @@ func (e *Engine) SubmitAnswer(quizID, questionID, userID int64, answer string, d
 	score := 0
 	if isCorrect {
 		score = q.Score
+	} else if isRush && rt.quiz.RushWrongScore > 0 {
+		score = -rt.quiz.RushWrongScore // 抢答题答错扣分
 	}
 
 	rec := model.Answer{
@@ -391,16 +454,20 @@ func (e *Engine) SubmitAnswer(quizID, questionID, userID int64, answer string, d
 		return nil, errors.New("重复提交")
 	}
 
-	// 更新参与者累计分（原子）
+	// 更新参与者累计分（原子；可为负——总分=抢答分+答题分-扣分）
 	if isCorrect {
 		e.DB.Model(&model.Participant{}).Where("quiz_id = ? AND user_id = ?", quizID, userID).
 			Updates(map[string]any{
-				"score":          gorm.Expr("score + ?", score),
-				"correct_count":  gorm.Expr("correct_count + 1"),
+				"score":         gorm.Expr("score + ?", score),
+				"correct_count": gorm.Expr("correct_count + 1"),
 			})
 	} else {
+		upd := map[string]any{"wrong_count": gorm.Expr("wrong_count + 1")}
+		if score != 0 {
+			upd["score"] = gorm.Expr("score + ?", score)
+		}
 		e.DB.Model(&model.Participant{}).Where("quiz_id = ? AND user_id = ?", quizID, userID).
-			Update("wrong_count", gorm.Expr("wrong_count + 1"))
+			Updates(upd)
 	}
 
 	var p model.Participant
@@ -577,5 +644,12 @@ func (rt *Runtime) stopTicker() {
 	if rt.tick != nil {
 		rt.tick.Stop()
 		rt.tick = nil
+	}
+}
+
+func (rt *Runtime) stopRushTicker() {
+	if rt.tickRush != nil {
+		rt.tickRush.Stop()
+		rt.tickRush = nil
 	}
 }
