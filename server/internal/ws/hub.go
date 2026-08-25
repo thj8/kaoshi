@@ -94,6 +94,11 @@ func (h *Hub) BroadcastUsers(quizID int64, event string, data any) {
 	h.sendTo(quizID, event, data, func(c *Client) bool { return !c.IsAdmin })
 }
 
+// BroadcastAdmins 仅广播给管理员
+func (h *Hub) BroadcastAdmins(quizID int64, event string, data any) {
+	h.sendTo(quizID, event, data, func(c *Client) bool { return c.IsAdmin })
+}
+
 func (h *Hub) sendTo(quizID int64, event string, data any, filter func(*Client) bool) {
 	h.mu.RLock()
 	r, ok := h.rooms[quizID]
