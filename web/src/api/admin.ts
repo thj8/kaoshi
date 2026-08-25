@@ -36,6 +36,15 @@ export interface Quiz {
   rush_answer_time: number
   rush_bonus_score: number
   rush_wrong_score: number
+  req_score_single: number
+  req_score_multiple: number
+  req_score_judge: number
+  rush_score_single: number
+  rush_score_multiple: number
+  rush_score_judge: number
+  rush_deduct_single: number
+  rush_deduct_multiple: number
+  rush_deduct_judge: number
   created_at: string
   started_at?: string
   ended_at?: string

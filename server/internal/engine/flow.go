@@ -472,11 +472,20 @@ func (e *Engine) SubmitAnswer(quizID, questionID, userID int64, answer string, d
 	}
 
 	isCorrect := userAns == q.Answer
+	// 计分：活动按题型配置优先（0=沿用题目自带分值）
+	earn := rt.quiz.TypeScore(q.Type, q.Required)
+	if earn <= 0 {
+		earn = q.Score
+	}
 	score := 0
 	if isCorrect {
-		score = q.Score
-	} else if isRush && rt.quiz.RushWrongScore > 0 {
-		score = -q.Score // 抢答题答错扣本题对应分值（RushWrongScore>0 即开启扣分）
+		score = earn
+	} else if isRush {
+		if d := rt.quiz.RushDeduct(q.Type); d > 0 {
+			score = -d // 按题型配置的扣分
+		} else if rt.quiz.RushWrongScore > 0 {
+			score = -earn // 兜底：开启扣分但未配题型 → 扣本题分值
+		}
 	}
 
 	rec := model.Answer{
