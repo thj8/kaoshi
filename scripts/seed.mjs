@@ -30,9 +30,9 @@ if (!at) throw new Error('admin 登录失败（server 未就绪？）')
 
 // ---------- 2. 用户账号 ----------
 const USERS = [
-  { username: 'player1', password: 'pass1234', nickname: '选手一号' },
-  { username: 'player2', password: 'pass1234', nickname: '选手二号' },
-  { username: 'player3', password: 'pass1234', nickname: '选手三号' },
+  { username: 'player1', password: 'player12345', nickname: '选手一号' },
+  { username: 'player2', password: 'player12345', nickname: '选手二号' },
+  { username: 'player3', password: 'player12345', nickname: '选手三号' },
 ]
 for (const u of USERS) {
   const r = await j('POST', '/api/auth/register', u)

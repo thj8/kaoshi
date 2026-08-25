@@ -28,7 +28,7 @@ function connect(token, onMsg) {
   const qA = (await j('POST', `/api/admin/quiz/${quizA.id}/questions`, { type: 'single', content: 'A?', answer: 'B', score: 10, required: true, sort: 1, options: [{ label: 'A', content: '1' }, { label: 'B', content: '2' }] }, at)).data
   await j('POST', `/api/admin/quiz/${quizB.id}/questions`, { type: 'single', content: 'B?', answer: 'A', score: 10, required: true, sort: 1, options: [{ label: 'A', content: '1' }, { label: 'B', content: '2' }] }, at)
 
-  const ua = (await j('POST', '/api/auth/register', { username: `s8u${sfx}`, password: 'pass1234', nickname: 'SecUser' })).data
+  const ua = (await j('POST', '/api/auth/register', { username: `s8u${sfx}`, password: 'test-pass-1234', nickname: 'SecUser' })).data
   const ja = (await j('POST', '/api/join', { quiz_id: quizA.id }, ua.token)).data
   const jb = (await j('POST', '/api/join', { quiz_id: quizB.id }, ua.token)).data
 
@@ -38,7 +38,7 @@ function connect(token, onMsg) {
   check('越权：跨 quiz token 提交被拒', cross.code !== 0, `code=${cross.code} msg=${cross.msg}`)
 
   // 1b. 未参加 quizA 的裸 token 也不能
-  const stranger = (await j('POST', '/api/auth/register', { username: `s8x${sfx}`, password: 'pass1234', nickname: 'Stranger' })).data
+  const stranger = (await j('POST', '/api/auth/register', { username: `s8x${sfx}`, password: 'test-pass-1234', nickname: 'Stranger' })).data
   const noJoin = await j('POST', `/api/question/${qA.id}/answer`, { answer: 'B', duration: 100 }, stranger.token)
   check('越权：未参加者提交被拒', noJoin.code !== 0, `code=${noJoin.code}`)
 
@@ -60,7 +60,7 @@ function connect(token, onMsg) {
   const N = 100
   const tokens = []
   for (let i = 0; i < N; i++) {
-    const u = (await j('POST', '/api/auth/register', { username: `s8r${sfx}_${i}`, password: 'pass1234', nickname: `r${i}` })).data
+    const u = (await j('POST', '/api/auth/register', { username: `s8r${sfx}_${i}`, password: 'test-pass-1234', nickname: `r${i}` })).data
     tokens.push((await j('POST', '/api/join', { quiz_id: rq.id }, u.token)).data.token)
   }
   await j('POST', `/api/admin/quiz/${rq.id}/start`, {}, at)
@@ -75,7 +75,7 @@ function connect(token, onMsg) {
   // ---------- 3. 断线重连恢复 ----------
   const quizC = (await j('POST', '/api/admin/quiz', { title: 's8-reconnect', mode: 'normal', per_question_time: 120 }, at)).data
   const qC = (await j('POST', `/api/admin/quiz/${quizC.id}/questions`, { type: 'single', content: 'C?', answer: 'A', score: 10, required: true, sort: 1, options: [{ label: 'A', content: '1' }, { label: 'B', content: '2' }] }, at)).data
-  const uc = (await j('POST', '/api/auth/register', { username: `s8c${sfx}`, password: 'pass1234', nickname: 'ReUser' })).data
+  const uc = (await j('POST', '/api/auth/register', { username: `s8c${sfx}`, password: 'test-pass-1234', nickname: 'ReUser' })).data
   const jc = (await j('POST', '/api/join', { quiz_id: quizC.id }, uc.token)).data
   let synced = null
   const ws1 = await connect(jc.token, m => { if (m.event === 'sync') synced = m.data })

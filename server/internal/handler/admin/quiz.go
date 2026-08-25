@@ -2,53 +2,19 @@ package admin
 
 import (
 	"net/http"
-	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
 	"kaoshi/internal/auth"
+	"kaoshi/internal/middleware"
 	"kaoshi/internal/model"
 )
 
-// loginLimiter 管理 admin 登录失败限速：同 IP 5 次失败锁 1 分钟
-// ponytail: 单机内存版够用；多实例部署换 Redis
-var loginLimiter = &ipLimiter{maxFails: 5, window: time.Minute, fails: map[string]*failState{}}
+// loginLimiter admin 登录失败限速：同 IP 5 次失败锁 1 分钟
+var loginLimiter = middleware.NewIPLimiter(5, time.Minute)
 
-type ipLimiter struct {
-	mu       sync.Mutex
-	maxFails int
-	window   time.Duration
-	fails    map[string]*failState
-}
-
-type failState struct {
-	count int
-	until time.Time
-}
-
-func (l *ipLimiter) allow(ip string) bool {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	fs := l.fails[ip]
-	return fs == nil || time.Now().After(fs.until)
-}
-
-func (l *ipLimiter) fail(ip string) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	fs := l.fails[ip]
-	if fs == nil {
-		fs = &failState{}
-		l.fails[ip] = fs
-	}
-	fs.count++
-	if fs.count >= l.maxFails {
-		fs.until = time.Now().Add(l.window)
-		fs.count = 0
-	}
-}
 
 type Handler struct {
 	DB        *gorm.DB
@@ -77,7 +43,7 @@ type loginReq struct {
 
 func (h *Handler) Login(c *gin.Context) {
 	ip := c.ClientIP()
-	if !loginLimiter.allow(ip) {
+	if !loginLimiter.Allow(ip) {
 		fail(c, 429, "尝试过于频繁，请 1 分钟后再试")
 		return
 	}
@@ -87,7 +53,7 @@ func (h *Handler) Login(c *gin.Context) {
 		return
 	}
 	if req.Username != h.AdminUser || req.Password != h.AdminPass {
-		loginLimiter.fail(ip)
+		loginLimiter.Fail(ip)
 		fail(c, 401, "用户名或密码错误")
 		return
 	}

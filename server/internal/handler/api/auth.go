@@ -7,14 +7,18 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"kaoshi/internal/auth"
+	"kaoshi/internal/middleware"
 	"kaoshi/internal/model"
 )
+
+// userLoginLimiter 用户登录失败限速：同 IP 10 次失败锁 1 分钟（比 admin 宽松，兼顾多人同一出口）
+var userLoginLimiter = middleware.NewIPLimiter(10, time.Minute)
 
 // ---------- 用户注册 / 登录 ----------
 
 type registerReq struct {
 	Username string `json:"username" binding:"required,min=2,max=32"`
-	Password string `json:"password" binding:"required,min=4,max=64"`
+	Password string `json:"password" binding:"required,min=10,max=64"`
 	Nickname string `json:"nickname" binding:"required,min=1,max=32"`
 }
 
@@ -22,7 +26,7 @@ type registerReq struct {
 func (h *Handler) Register(c *gin.Context) {
 	var req registerReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		fail(c, 400, "用户名2-32位、密码至少4位、昵称1-32位")
+		fail(c, 400, "用户名2-32位、密码至少10位、昵称1-32位")
 		return
 	}
 	var cnt int64
@@ -54,6 +58,11 @@ type loginReq struct {
 
 // Login POST /api/auth/login
 func (h *Handler) Login(c *gin.Context) {
+	ip := c.ClientIP()
+	if !userLoginLimiter.Allow(ip) {
+		fail(c, 429, "尝试过于频繁，请 1 分钟后再试")
+		return
+	}
 	var req loginReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		fail(c, 400, "请输入用户名和密码")
@@ -61,10 +70,12 @@ func (h *Handler) Login(c *gin.Context) {
 	}
 	var user model.User
 	if err := h.DB.Where("username = ?", req.Username).First(&user).Error; err != nil {
+		userLoginLimiter.Fail(ip)
 		fail(c, 401, "用户名或密码错误")
 		return
 	}
 	if bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)) != nil {
+		userLoginLimiter.Fail(ip)
 		fail(c, 401, "用户名或密码错误")
 		return
 	}
