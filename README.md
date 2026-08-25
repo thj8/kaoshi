@@ -74,26 +74,26 @@ docker compose up -d --build
 docker compose up -d mysql redis
 
 # 后端（:8080，注意 go 在 /usr/local/go/bin）
-cd server && KAOSHI_ENV=dev go run ./cmd/server
+cd server && KAOSHI_ENV=dev KAOSHI_JWT_SECRET=dev-only-secret KAOSHI_ADMIN_PASS=dev-only-pass go run ./cmd/server
 
 # 前端（:5173，/api /ws 代理到 localhost:18080）
 cd web && npm run dev
 ```
 
-> 开发模式下 vite 代理指向 18080（docker 映射端口）；若本地直跑后端用 `KAOSHI_ADDR=:18080 go run ./cmd/server` 即可对上
+> 开发模式下 vite 代理指向 18080（docker 映射端口）；若本地直跑后端用 `KAOSHI_ADDR=:18080 KAOSHI_JWT_SECRET=dev-only-secret KAOSHI_ADMIN_PASS=dev-only-pass go run ./cmd/server` 即可对上
 
 ## 端口与配置
 
 | 端口(宿主机) | 服务 | 环境变量（server 容器） |
 |---|---|---|
-| 13306 | MySQL | `KAOSHI_MYSQL_DSN` |
-| 16379 | Redis | `KAOSHI_REDIS_ADDR` |
+| 13306 | MySQL（仅本机 127.0.0.1） | `KAOSHI_MYSQL_DSN` |
+| 16379 | Redis（仅本机 127.0.0.1） | `KAOSHI_REDIS_ADDR` / `KAOSHI_REDIS_PASS` |
 | 18080 | Go 后端 | `KAOSHI_JWT_SECRET` / `KAOSHI_ADMIN_USER` / `KAOSHI_ADMIN_PASS` |
 | 13000 | 前端(nginx) | — |
 
 改密钥/账号：编辑 `docker-compose.yml` 中 `KAOSHI_*` 环境变量后 `docker compose up -d server`。
 
-> 安全：JWT secret 已随机化且为空即拒绝启动；admin 密码已随机化；管理端登录同 IP 5 次失败锁 1 分钟；WS token 改走 `Sec-WebSocket-Protocol` 头（不再进 URL/访问日志）。
+> 安全：JWT secret 已随机化且为空即拒绝启动；admin 密码已随机化（拒绝空/弱默认启动）；MySQL/Redis 仅绑 127.0.0.1 且复杂密码；管理端登录同 IP 5 次失败锁 1 分钟；WS token 走 `Sec-WebSocket-Protocol` 头（不再进 URL/访问日志）。
 
 ## 当前状态
 
@@ -126,6 +126,6 @@ node scripts/hardening_e2e.mjs   # 需先 docker compose up；BASE_URL 可覆盖
 ## 数据重置
 
 ```bash
-docker exec kaoshi-mysql mysql -uroot -proot123456 kaoshi \
+docker exec kaoshi-mysql mysql -uroot -p***REMOVED*** kaoshi \
   -e "SET FOREIGN_KEY_CHECKS=0; TRUNCATE answers; TRUNCATE rush_records; TRUNCATE participants; TRUNCATE question_options; TRUNCATE questions; TRUNCATE quizzes; TRUNCATE users; SET FOREIGN_KEY_CHECKS=1;"
 ```

@@ -3,15 +3,15 @@ services:
     image: mysql:8.0
     container_name: kaoshi-mysql
     environment:
-      MYSQL_ROOT_PASSWORD: root123456
+      MYSQL_ROOT_PASSWORD: ***REMOVED***
       MYSQL_DATABASE: kaoshi
       TZ: Asia/Shanghai
     ports:
-      - "13306:3306"
+      - "127.0.0.1:13306:3306"   # 仅本机可连，外部不可达
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-proot123456"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p***REMOVED***"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -19,12 +19,13 @@ services:
   redis:
     image: redis:7-alpine
     container_name: kaoshi-redis
+    command: ["redis-server", "--requirepass", "***REMOVED***"]
     ports:
-      - "16379:6379"
+      - "127.0.0.1:16379:6379"   # 仅本机可连，外部不可达
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "***REMOVED***", "ping"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -34,8 +35,9 @@ services:
     container_name: kaoshi-server
     environment:
       KAOSHI_ADDR: ":8080"
-      KAOSHI_MYSQL_DSN: "root:root123456@tcp(mysql:3306)/kaoshi?charset=utf8mb4&parseTime=True&loc=Local"
+      KAOSHI_MYSQL_DSN: "root:***REMOVED***@tcp(mysql:3306)/kaoshi?charset=utf8mb4&parseTime=True&loc=Local"
       KAOSHI_REDIS_ADDR: "redis:6379"
+      KAOSHI_REDIS_PASS: "***REMOVED***"
       KAOSHI_JWT_SECRET: "***REMOVED***"
       KAOSHI_ADMIN_USER: "admin"
       KAOSHI_ADMIN_PASS: "***REMOVED***"
