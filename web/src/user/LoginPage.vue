@@ -20,13 +20,6 @@
         </button>
       </form>
 
-      <!-- 签名元素：答题卡涂卡气泡，登录 = 涂下第一格 -->
-      <div class="bubbles" aria-hidden="true">
-        <span class="bubble filled">A</span>
-        <span class="bubble">B</span>
-        <span class="bubble">C</span>
-        <span class="bubble">D</span>
-      </div>
 
       <p v-if="redirectHint" class="hint">登录后自动进入{{ redirectHint }}</p>
     </div>
@@ -160,43 +153,6 @@ h1 {
   margin-top: 2px;
 }
 
-/* 签名：涂卡气泡 */
-.bubbles {
-  display: flex;
-  justify-content: center;
-  gap: 18px;
-  margin-top: 26px;
-  animation: rise 0.45s ease 0.1s both;
-}
-.bubble {
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  border: 1.5px solid rgba(0, 0, 0, 0.18);
-  color: var(--text-dim);
-  font-size: 11px;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.bubble.filled {
-  border-color: var(--primary);
-  background: var(--primary);
-  color: #fff;
-  box-shadow: 0 4px 12px rgba(0, 113, 227, 0.3);
-}
-.bubble:not(.filled) {
-  animation: ghost 3s ease-in-out infinite;
-}
-.bubble:not(.filled):nth-child(2) { animation-delay: 0.5s; }
-.bubble:not(.filled):nth-child(3) { animation-delay: 1s; }
-.bubble:not(.filled):nth-child(4) { animation-delay: 1.5s; }
-@keyframes ghost {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.45; }
-}
-
 .hint {
   margin-top: 18px;
   color: var(--text-dim);
@@ -207,9 +163,7 @@ h1 {
 }
 @media (prefers-reduced-motion: reduce) {
   .mark,
-  .auth-card,
-  .bubbles,
-  .bubble {
+  .auth-card {
     animation: none;
   }
 }
