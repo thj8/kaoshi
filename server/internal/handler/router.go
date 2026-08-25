@@ -41,6 +41,7 @@ func Register(r *gin.Engine, cfg *config.Config, db *gorm.DB, rdb *redis.Client)
 	user := r.Group("/api", middleware.UserAuth())
 	{
 		user.GET("/auth/me", apiH.Me)
+		user.GET("/quizzes", apiH.QuizList)
 		user.POST("/join", apiH.Join)
 		user.GET("/quiz/:id", apiH.QuizInfo)
 		user.GET("/quiz/:id/current-question", answerH.CurrentQuestion)
