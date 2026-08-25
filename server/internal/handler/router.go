@@ -46,6 +46,7 @@ func Register(r *gin.Engine, cfg *config.Config, db *gorm.DB, rdb *redis.Client)
 		user.GET("/quiz/:id", apiH.QuizInfo)
 		user.GET("/quiz/:id/current-question", answerH.CurrentQuestion)
 		user.POST("/question/:id/answer", answerH.Submit)
+		user.POST("/question/:id/rush", answerH.Rush)
 		user.GET("/quiz/:id/ranking", answerH.Ranking)
 		user.GET("/quiz/:id/result", answerH.Result)
 	}
@@ -84,6 +85,8 @@ func Register(r *gin.Engine, cfg *config.Config, db *gorm.DB, rdb *redis.Client)
 		ctrlGroup.POST("/quiz/:id/previous", ctrl.Previous)
 		ctrlGroup.POST("/quiz/:id/reveal", ctrl.Reveal)
 		ctrlGroup.POST("/quiz/:id/end", ctrl.End)
+		ctrlGroup.POST("/quiz/:id/rush/start", ctrl.RushStart)
+		ctrlGroup.POST("/quiz/:id/rush/end", ctrl.RushEnd)
 		ctrlGroup.GET("/quiz/:id/statistics", ctrl.Statistics)
 	}
 	return eng

@@ -134,6 +134,18 @@ func (h *AnswerHandler) Result(c *gin.Context) {
 	})
 }
 
+// Rush POST /api/question/:id/rush 抢答（服务器原子判序）
+func (h *AnswerHandler) Rush(c *gin.Context) {
+	claims := c.MustGet("claims").(*auth.Claims)
+	questionID, _ := parseInt64(c.Param("id"))
+	result, err := h.Eng.RushSubmit(claims.QuizID, questionID, claims.UserID)
+	if err != nil {
+		fail(c, 400, err.Error())
+		return
+	}
+	ok(c, result)
+}
+
 // CurrentQuestion GET /api/quiz/:id/current-question 当前题（REST 兑底，刷新恢复）
 func (h *AnswerHandler) CurrentQuestion(c *gin.Context) {
 	claims := c.MustGet("claims").(*auth.Claims)

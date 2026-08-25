@@ -54,6 +54,16 @@
 
       <!-- 右：实时数据 -->
       <div class="card panel">
+        <!-- 抢答获答者 -->
+        <div v-if="rushWinners.length > 0" class="rush-box">
+          <h3 class="panel-title" style="color: var(--danger)">⚡ 抢答获答者</h3>
+          <div v-for="w in rushWinners" :key="w.user_id" class="rush-winner-row">
+            <span class="rk" :class="'top' + Math.min(w.rank, 3)">{{ w.rank }}</span>
+            <span style="flex: 1">{{ w.nickname }}</span>
+            <span class="text-dim" style="font-size: 12px">+{{ w.bonus }}分</span>
+          </div>
+        </div>
+
         <h3 class="panel-title">实时数据</h3>
         <div class="stat-grid">
           <div class="stat"><div class="n">{{ stats.participants }}</div><div class="l">参与人数</div></div>
@@ -79,6 +89,8 @@
       <button class="btn btn-ghost" :disabled="curIndex <= 0 || status === 'WAITING'" @click="ctrl('previous')">← 上一题</button>
       <button v-if="status === 'WAITING'" class="btn btn-primary big" @click="ctrl('start')">▶ 开始答题</button>
       <button v-if="status === 'PAUSED'" class="btn btn-primary big" @click="ctrl('resume')">▶ 继续</button>
+      <button v-if="canRush" class="btn big" style="background: linear-gradient(135deg, #ff7062, #e0404f)" @click="ctrl('rush/start')">⚡ 开始抢答</button>
+      <button v-if="status === 'RUSHING'" class="btn btn-ghost" style="color: var(--warn)" @click="ctrl('rush/end')">■ 结束抢答</button>
       <button v-if="status === 'ANSWERING' || status === 'REVEALING'" class="btn btn-ghost" style="color: var(--warn)" @click="ctrl('pause')">⏸ 暂停</button>
       <button v-if="canReveal" class="btn btn-ghost" style="color: var(--success)" @click="ctrl('reveal')">📢 公布答案</button>
       <button v-if="status !== 'WAITING' && status !== 'FINISHED'" class="btn btn-primary big" @click="ctrl('next')">下一题 →</button>
@@ -117,6 +129,16 @@ let tickTimer: number | null = null
 
 const remainSec = computed(() => Math.ceil(remainMs.value / 1000))
 const canReveal = computed(() => curIndex.value >= 0 && (status.value === 'ANSWERING' || status.value === 'REVEALING'))
+const rushWinners = ref<Array<{ user_id: number; nickname: string; rank: number; bonus: number }>>([])
+/** 本题已完成抢答（有获答者）后不可重抢 */
+const rushDone = computed(() => (rushWinners.value?.length ?? 0) > 0)
+const canRush = computed(
+  () =>
+    !!quiz.value?.rush_enabled &&
+    status.value === 'ANSWERING' &&
+    curIndex.value >= 0 &&
+    !rushDone.value
+)
 const statusText = computed(() => ({ WAITING: '未开始', RUNNING: '进行中', PAUSED: '已暂停', RUSHING: '抢答中', ANSWERING: '答题中', REVEALING: '公布答案', FINISHED: '已结束' } as Record<string, string>)[status.value] || status.value)
 
 onMounted(async () => {
@@ -156,6 +178,7 @@ function handleEvent(msg: WSMessage) {
   switch (msg.event) {
     case Ev.Sync:
       status.value = d.status || 'WAITING'
+      rushWinners.value = d.rush_winners || []
       if (d.question) {
         applyQuestion(d.question, d.deadline_at || 0)
       }
@@ -164,6 +187,7 @@ function handleEvent(msg: WSMessage) {
       status.value = d.status || 'ANSWERING'
       revealed.value = false
       distribution.value = {}
+      rushWinners.value = []
       stats.answered = 0
       stats.correct = 0
       stats.wrong = 0
@@ -199,6 +223,15 @@ function handleEvent(msg: WSMessage) {
       break
     case Ev.ActivityResume:
       status.value = 'ANSWERING'
+      break
+    case Ev.RushStart:
+      status.value = 'RUSHING'
+      rushWinners.value = []
+      break
+    case Ev.RushEnd:
+      status.value = d.answer_deadline_at ? 'ANSWERING' : 'ANSWERING'
+      rushWinners.value = d.winners || []
+      if (d.answer_deadline_at) deadlineAt.value = d.answer_deadline_at
       break
     case Ev.ActivityEnd:
       status.value = 'FINISHED'
@@ -322,6 +355,20 @@ function barWidth(cnt: number) {
   margin-left: auto;
   font-size: 12px;
   color: var(--text-dim);
+}
+.rush-box {
+  background: rgba(255, 93, 108, 0.08);
+  border: 1px solid var(--danger);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 14px;
+}
+.rush-winner-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 4px;
+  font-size: 14px;
 }
 .stat-grid {
   display: grid;

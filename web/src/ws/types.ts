@@ -41,7 +41,32 @@ export interface SyncData {
   question: QuestionBrief | null
   deadline_at: number
   rush_active: boolean
+  my_rush_rank: number // 0=未抢 -1=失败 >0=成功
+  rush_winners: RushWinner[] | null
   me: MeInfo | null
+  server_now: number
+}
+
+export interface RushWinner {
+  user_id: number
+  nickname: string
+  rank: number
+  bonus: number
+}
+
+export interface RushResultData {
+  question_id: number
+  rank: number
+  nickname: string
+  bonus: number
+  score: number
+  reason?: string
+}
+
+export interface RushEndData {
+  question_id: number
+  winners: RushWinner[]
+  answer_deadline_at: number
   server_now: number
 }
 

@@ -1,5 +1,5 @@
 import { http, unwrap, LS } from './index'
-import type { AnswerResultData, RankingData } from '../ws/types'
+import type { AnswerResultData, RankingData, RushResultData } from '../ws/types'
 
 export interface QuizInfo {
   quiz: {
@@ -68,6 +68,17 @@ export const userApi = {
   },
   quizToken(quizId: number) {
     return localStorage.getItem(LS.userToken(quizId)) || ''
+  },
+  async rush(questionId: number) {
+    const quizId = quizIdFromPath()
+    const token = localStorage.getItem(LS.userToken(quizId)) || ''
+    return unwrap<RushResultData>(
+      await http.post(
+        `/api/question/${questionId}/rush`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+    )
   },
   async submitAnswer(questionId: number, answer: string, durationMs: number) {
     const quizId = quizIdFromPath()

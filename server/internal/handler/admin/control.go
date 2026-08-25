@@ -37,6 +37,8 @@ func (h *ControlHandler) Reveal(c *gin.Context)   { h.wrap(c, func() error { ret
 func (h *ControlHandler) End(c *gin.Context) {
 	h.wrap(c, func() error { return h.Eng.End(id(c)) })
 }
+func (h *ControlHandler) RushStart(c *gin.Context) { h.wrap(c, func() error { return h.Eng.RushStart(id(c)) }) }
+func (h *ControlHandler) RushEnd(c *gin.Context)   { h.wrap(c, func() error { return h.Eng.RushEnd(id(c)) }) }
 
 // Statistics GET /api/admin/quiz/:id/statistics 实时+最终统计
 func (h *ControlHandler) Statistics(c *gin.Context) {
