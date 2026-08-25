@@ -14,7 +14,6 @@ CREATE TABLE IF NOT EXISTS `quizzes` (
   `description`  VARCHAR(1024) DEFAULT '',
   `status`       VARCHAR(16) NOT NULL DEFAULT 'WAITING',
   `mode`         VARCHAR(16) NOT NULL DEFAULT 'normal',
-  `invite_code`  VARCHAR(16) NOT NULL,
   `total_time`   INT NOT NULL,
   `per_question_time` INT NOT NULL DEFAULT 30,
   `rush_enabled`     TINYINT(1) NOT NULL,
@@ -29,7 +28,6 @@ CREATE TABLE IF NOT EXISTS `quizzes` (
   `created_at` DATETIME(3) DEFAULT CURRENT_TIMESTAMP(3),
   `started_at` DATETIME(3) NULL,
   `ended_at`   DATETIME(3) NULL,
-  UNIQUE KEY `uk_quizzes_invite_code` (`invite_code`),
   KEY `idx_quizzes_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 

@@ -23,9 +23,9 @@ export interface JoinResp {
 }
 
 export const userApi = {
-  async join(nickname: string, inviteCode: string) {
+  async join(nickname: string, quizId: number) {
     return unwrap<JoinResp>(
-      await http.post('/api/join', { nickname, invite_code: inviteCode.trim().toUpperCase() })
+      await http.post('/api/join', { nickname, quiz_id: quizId })
     )
   },
   async quizInfo(quizId: number) {

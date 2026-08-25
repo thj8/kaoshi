@@ -2,10 +2,7 @@
   <div class="page">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px">
       <h1>📋 答题活动管理</h1>
-      <div style="display: flex; gap: 10px">
-        <button class="btn btn-primary" @click="showCreate = true">＋ 创建答题</button>
-        <button class="btn btn-ghost" @click="logout">退出登录</button>
-      </div>
+      <button class="btn btn-primary" @click="showCreate = true">＋ 创建答题</button>
     </div>
 
     <div v-if="loading" class="text-dim">加载中...</div>
@@ -22,7 +19,9 @@
         <p class="text-dim" style="margin: 8px 0; font-size: 13px; min-height: 18px">{{ q.description || '—' }}</p>
         <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px">
           <span class="tag">{{ q.mode === 'rush' ? '抢答模式' : '普通模式' }}</span>
-          <span class="tag">邀请码 <b style="color: var(--warn)">{{ q.invite_code }}</b></span>
+          <button class="tag link-tag" style="cursor: pointer" title="点击复制加入链接" @click="copyLink(q.id)">
+            🔗 加入链接 <b style="color: var(--primary)">{{ joinLink(q.id) }}</b>
+          </button>
         </div>
         <div style="display: flex; gap: 8px">
           <button class="btn btn-primary" style="flex: 1; padding: 9px" @click="$router.push(`/admin/quiz/${q.id}/console`)">
@@ -108,7 +107,6 @@
 import { onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { adminApi, type Quiz } from '../api/admin'
-import { LS } from '../api'
 
 const router = useRouter()
 const quizzes = ref<Quiz[]>([])
@@ -171,9 +169,17 @@ async function del(q: Quiz) {
   load()
 }
 
-function logout() {
-  localStorage.removeItem(LS.adminToken)
-  router.push('/admin/login')
+function joinLink(id: number) {
+  return `${location.origin}/join/${id}`
+}
+
+async function copyLink(id: number) {
+  try {
+    await navigator.clipboard.writeText(joinLink(id))
+    alert('已复制加入链接：\n' + joinLink(id))
+  } catch {
+    alert('加入链接：' + joinLink(id))
+  }
 }
 
 function statusText(s: string) {
@@ -229,4 +235,10 @@ function statusText(s: string) {
 .st-WAITING { color: var(--text-dim); }
 .st-RUNNING { color: var(--success); }
 .st-FINISHED { color: var(--warn); }
+.link-tag {
+  border: 1px dashed var(--border);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 </style>

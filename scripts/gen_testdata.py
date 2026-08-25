@@ -187,8 +187,8 @@ def main():
         "rush_bonus_score": 5,
         "rush_wrong_score": 5,
     }, token)
-    quiz_id, invite = quiz["id"], quiz["invite_code"]
-    print(f"已创建答题: id={quiz_id} 邀请码={invite}")
+    quiz_id = quiz["id"]
+    print(f"已创建答题: id={quiz_id} (链接 /join/{quiz_id})")
 
     questions = build_questions()
     for i, q in enumerate(questions, 1):
@@ -201,10 +201,9 @@ def main():
     rush_cnt = total - req_cnt
     print("\n========== 完成 ==========")
     print(f"答题 ID  : {quiz_id}")
-    print(f"邀请码   : {invite}")
     print(f"题目总数 : {total}（必答 {req_cnt} + 抢答 {rush_cnt}）")
     print(f"管理控制台: {BASE}/admin/quiz/{quiz_id}/console")
-    print(f"用户加入 : {BASE}/join （昵称 + 邀请码 {invite}）")
+    print(f"用户加入 : {BASE}/join/{quiz_id} （链接直达，输入昵称即可）")
 
 
 if __name__ == "__main__":

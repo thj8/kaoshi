@@ -29,20 +29,20 @@ func fail(c *gin.Context, code int, msg string) {
 }
 
 type joinReq struct {
-	Nickname   string `json:"nickname" binding:"required,min=1,max=32"`
-	InviteCode string `json:"invite_code" binding:"required,len=6"`
+	Nickname string `json:"nickname" binding:"required,min=1,max=32"`
+	QuizID   int64  `json:"quiz_id" binding:"required"`
 }
 
-// Join 输入昵称+邀请码加入答题，返回 token
+// Join 输入昵称加入指定答题，返回 token
 func (h *Handler) Join(c *gin.Context) {
 	var req joinReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		fail(c, 400, "请输入昵称与 6 位邀请码")
+		fail(c, 400, "请输入昵称与答题编号")
 		return
 	}
 	var quiz model.Quiz
-	if err := h.DB.Where("invite_code = ?", req.InviteCode).First(&quiz).Error; err != nil {
-		fail(c, 404, "邀请码无效")
+	if err := h.DB.First(&quiz, req.QuizID).Error; err != nil {
+		fail(c, 404, "答题不存在，请检查链接")
 		return
 	}
 	if quiz.Status == model.QuizStatusFinished {
@@ -90,6 +90,24 @@ func quizBriefOf(q *model.Quiz) gin.H {
 		"status": q.Status, "mode": q.Mode,
 		"show_answer": q.ShowAnswer, "show_analysis": q.ShowAnalysis, "show_ranking": q.ShowRanking,
 	}
+}
+
+// QuizBrief GET /api/quiz/:id/brief 公开信息（加入页展示，无需登录；不含任何答案信息）
+func (h *Handler) QuizBrief(c *gin.Context) {
+	var quiz model.Quiz
+	if err := h.DB.First(&quiz, c.Param("id")).Error; err != nil {
+		fail(c, 404, "答题不存在")
+		return
+	}
+	var count int64
+	h.DB.Model(&model.Participant{}).Where("quiz_id = ?", quiz.ID).Count(&count)
+	ok(c, gin.H{
+		"id":              quiz.ID,
+		"title":           quiz.Title,
+		"description":     quiz.Description,
+		"status":          quiz.Status,
+		"participant_count": count,
+	})
 }
 
 // QuizInfo GET /api/quiz/:id 答题基础信息（需用户 token）

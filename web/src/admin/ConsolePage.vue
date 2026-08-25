@@ -3,7 +3,7 @@
     <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px">
       <button class="btn btn-ghost" style="padding: 8px 14px" @click="$router.push(`/admin/quiz/${quizId}`)">←</button>
       <h1 style="flex: 1; font-size: 20px">{{ quiz?.title || '控制台' }}</h1>
-      <span class="tag">邀请码 <b style="color: var(--warn)">{{ quiz?.invite_code }}</b></span>
+      <button v-if="quiz" class="tag" style="cursor: pointer; border: 1px dashed var(--border)" title="点击复制加入链接" @click="copyLink">🔗 {{ joinLink }}</button>
       <span class="tag" :class="'st-' + status">{{ statusText }}</span>
     </div>
 
@@ -233,6 +233,17 @@ async function ctrl(action: string) {
 
 function typeText(t: string) {
   return ({ single: '单选', multiple: '多选', judge: '判断' } as Record<string, string>)[t] || t
+}
+
+const joinLink = computed(() => (quiz.value ? `${location.origin}/join/${quiz.value.id}` : ''))
+
+async function copyLink() {
+  try {
+    await navigator.clipboard.writeText(joinLink.value)
+    alert('已复制加入链接：\n' + joinLink.value)
+  } catch {
+    alert('加入链接：' + joinLink.value)
+  }
 }
 
 function barWidth(cnt: number) {

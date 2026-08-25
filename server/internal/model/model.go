@@ -33,7 +33,6 @@ type Quiz struct {
 	Description string `gorm:"size:1024" json:"description"`
 	Status      string `gorm:"size:16;notNull;default:WAITING;index" json:"status"`
 	Mode        string `gorm:"size:16;notNull;default:normal" json:"mode"`
-	InviteCode  string `gorm:"size:16;notNull;uniqueIndex" json:"invite_code"`
 
 	// 全局配置（bool 不加 gorm default 标签：GORM 对零值+default 会改写字段，导致显式 false 失效）
 	TotalTime       int  `gorm:"notNull" json:"total_time"`        // 总答题时间（秒，0=不限）

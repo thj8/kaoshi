@@ -91,7 +91,8 @@ npm run build               # 类型检查 + 构建（vue-tsc + vite）
 - **GORM 零值陷阱**：`time.Time` 字段插入前必须显式赋值 `time.Now()`，否则 MySQL 拒收且错误被误判为唯一索引冲突
 - **GORM bool 陷阱**：模型 bool 字段禁止加 `default` 标签——显式 false 是零值，GORM 会改写字段为默认值（default:true 时显式 false 变 true，极隐蔽）
 - Vue：一律 `<script setup lang="ts">` 组合式 API；REST 调用走 `src/api/index.ts` 的 `http`/`unwrap`；token 存 localStorage（key 见 `LS` 常量）
-- 新增页面：用户端放 `src/user/`，管理端放 `src/admin/`，并在 `src/router/index.ts` 注册懒加载路由
+- 新增页面：用户端放 `src/user/`；管理后台页面放 `src/admin/` 并作为 `AdminLayout` 的子路由注册（`src/router/index.ts`），侧边栏导航同步更新
+- **加入方式**：无邀请码。用户通过 `/join/<quizID>` 链接直达（或手填答题编号）；`POST /api/join` 参数为 `{nickname, quiz_id}`
 - 样式用全局 CSS 变量（`src/styles/main.css`），移动端适配必须考虑（现场手机答题）
 
 ## Git 约定

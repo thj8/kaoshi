@@ -3,7 +3,9 @@
     <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px">
       <button class="btn btn-ghost" style="padding: 8px 14px" @click="$router.push('/admin')">←</button>
       <h1 style="flex: 1">{{ quiz?.title || '加载中...' }}</h1>
-      <span v-if="quiz" class="tag">邀请码 <b style="color: var(--warn); font-size: 14px">{{ quiz.invite_code }}</b></span>
+      <button v-if="quiz" class="tag link-tag" style="cursor: pointer" title="点击复制加入链接" @click="copyLink">
+        🔗 {{ joinLink }}
+      </button>
     </div>
 
     <template v-if="quiz">
@@ -340,6 +342,17 @@ async function delQ(q: Question) {
 function typeText(t: string) {
   return { single: '单选', multiple: '多选', judge: '判断' }[t] || t
 }
+
+const joinLink = computed(() => (quiz.value ? `${location.origin}/join/${quiz.value.id}` : ''))
+
+async function copyLink() {
+  try {
+    await navigator.clipboard.writeText(joinLink.value)
+    alert('已复制加入链接：\n' + joinLink.value)
+  } catch {
+    alert('加入链接：' + joinLink.value)
+  }
+}
 </script>
 
 <style scoped>
@@ -409,6 +422,12 @@ function typeText(t: string) {
   align-items: center;
   gap: 10px;
   margin-bottom: 10px;
+}
+.link-tag {
+  border: 1px dashed var(--border);
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .opt-label {
   width: 24px;

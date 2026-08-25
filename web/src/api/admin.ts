@@ -25,7 +25,6 @@ export interface Quiz {
   description: string
   status: string
   mode: 'normal' | 'rush'
-  invite_code: string
   total_time: number
   per_question_time: number
   rush_enabled: boolean

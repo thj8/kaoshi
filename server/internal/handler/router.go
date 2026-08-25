@@ -33,8 +33,10 @@ func Register(r *gin.Engine, cfg *config.Config, db *gorm.DB, rdb *redis.Client)
 	r.GET("/ws", wsSrv.HandleWS)
 
 	// 用户端
+
 	answerH := api.NewAnswer(db, eng)
 	r.POST("/api/join", apiH.Join)
+	r.GET("/api/quiz/:id/brief", apiH.QuizBrief)
 	user := r.Group("/api", middleware.UserAuth())
 	{
 		user.GET("/quiz/:id", apiH.QuizInfo)
@@ -50,6 +52,11 @@ func Register(r *gin.Engine, cfg *config.Config, db *gorm.DB, rdb *redis.Client)
 
 	authed := adm.Group("", middleware.AdminAuth())
 	{
+		authed.GET("/users", adminH.ListUsers)
+		authed.GET("/users/:id", adminH.UserDetail)
+		authed.PUT("/users/:id", adminH.UpdateUser)
+		authed.DELETE("/users/:id", adminH.DeleteUser)
+
 		authed.GET("/quizzes", adminH.ListQuizzes)
 		authed.POST("/quiz", adminH.CreateQuiz)
 		authed.GET("/quiz/:id", adminH.GetQuiz)

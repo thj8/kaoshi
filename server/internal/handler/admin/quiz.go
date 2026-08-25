@@ -1,7 +1,6 @@
 package admin
 
 import (
-	"math/rand"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -73,15 +72,6 @@ type quizReq struct {
 	RushWrongScore  int    `json:"rush_wrong_score" binding:"min=0"`
 }
 
-func genInviteCode() string {
-	const charset = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
-	b := make([]byte, 6)
-	for i := range b {
-		b[i] = charset[rand.Intn(len(charset))]
-	}
-	return string(b)
-}
-
 func (h *Handler) CreateQuiz(c *gin.Context) {
 	var req quizReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -93,7 +83,6 @@ func (h *Handler) CreateQuiz(c *gin.Context) {
 		Description:     req.Description,
 		Mode:            req.Mode,
 		Status:          model.QuizStatusWaiting,
-		InviteCode:      genInviteCode(),
 		TotalTime:       req.TotalTime,
 		PerQuestionTime: orDefault(req.PerQuestionTime, 30),
 		RushEnabled:     boolOr(req.RushEnabled, req.Mode == model.ModeRush),
@@ -106,13 +95,9 @@ func (h *Handler) CreateQuiz(c *gin.Context) {
 		RushBonusScore:  orDefault(req.RushBonusScore, 5),
 		RushWrongScore:  req.RushWrongScore,
 	}
-	for {
-		if err := h.DB.Create(&quiz).Error; err == nil {
-			break
-		} else {
-			// 邀请码冲突则重试
-			quiz.InviteCode = genInviteCode()
-		}
+	if err := h.DB.Create(&quiz).Error; err != nil {
+		fail(c, 500, "保存失败")
+		return
 	}
 	ok(c, quiz)
 }
