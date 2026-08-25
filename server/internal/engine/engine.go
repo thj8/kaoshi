@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"log"
 	"sync"
 
 	"github.com/redis/go-redis/v9"
@@ -66,8 +67,35 @@ func (e *Engine) Get(quizID int64) (*Runtime, error) {
 		options:   map[int64][]model.QuestionOption{},
 		curIndex:  -1,
 	}
+	e.recoverRuntime(rt)
 	e.runtimes[quizID] = rt
 	return rt, nil
+}
+
+// recoverRuntime 服务重启后从 DB 恢复进行中的状态（不恢复倒计时：
+// 重启视为异常，题目停在当前题，由管理员手动 next/previous/reveal 继续，避免重启瞬间全体强制收卷）
+func (e *Engine) recoverRuntime(rt *Runtime) {
+	q := rt.quiz
+	switch q.Status {
+	case model.QuizStatusAnswering, model.QuizStatusRevealing, model.QuizStatusRushing:
+		// 找到最近一道已有作答记录的题作为恢复位置；若无则从第 1 题重发
+		if len(rt.questions) == 0 {
+			return
+		}
+		idx := 0
+		for i := len(rt.questions) - 1; i >= 0; i-- {
+			var cnt int64
+			e.DB.Model(&model.Answer{}).
+				Where("quiz_id = ? AND question_id = ?", q.ID, rt.questions[i].ID).
+				Count(&cnt)
+			if cnt > 0 {
+				idx = i
+				break
+			}
+		}
+		rt.curIndex = idx
+		log.Printf("[engine] quiz %d 状态恢复: status=%s curIndex=%d（重启前进行中）", q.ID, q.Status, idx)
+	}
 }
 
 // GetOptions 题目选项（缓存，外部调用，自带锁）
