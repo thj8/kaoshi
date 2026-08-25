@@ -36,7 +36,6 @@
             style="flex: 1; padding: 9px"
             @click="$router.push(`/admin/quiz/${q.id}`)"
           >
-          >
             编辑
           </button>
           <button
