@@ -16,6 +16,28 @@
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.04);
 }
 
+/* 管理端保持原深色主题 */
+.admin-shell,
+.admin-auth {
+  --bg: #0f1220;
+  --bg-soft: #171b2e;
+  --card: #1d2338;
+  --card-2: #242b47;
+  --border: #2e3654;
+  --text: #e8ecf8;
+  --text-dim: #8b93b5;
+  --primary: #6c7bff;
+  --primary-strong: #4f5ef0;
+  --success: #2ecc8f;
+  --danger: #ff5d6c;
+  --warn: #ffb020;
+  --radius: 14px;
+  --shadow: none;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;

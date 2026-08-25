@@ -1,6 +1,6 @@
 <template>
-  <div class="page" style="max-width: 420px; padding-top: 10vh">
-    <div class="card" style="padding: 32px">
+  <div class="admin-auth" style="min-height: 100vh; display: flex; align-items: flex-start; justify-content: center; padding: 10vh 16px 0">
+    <div class="card" style="padding: 32px; width: 420px; max-width: 100%">
       <h1 style="font-size: 22px; margin-bottom: 4px">🎯 答题管理端</h1>
       <p class="text-dim" style="margin-bottom: 24px">实时答题系统 · 管理控制台</p>
       <form @submit.prevent="doLogin">
