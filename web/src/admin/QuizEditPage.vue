@@ -12,15 +12,10 @@
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px">
           <h2>题目（{{ questions.length }}）</h2>
           <div style="display: flex; gap: 8px">
-            <button
-              v-if="quiz.status !== 'WAITING'"
-              class="btn btn-primary"
-              style="padding: 8px 16px"
-              @click="$router.push(`/admin/quiz/${quiz.id}/console`)"
-            >
+            <button class="btn btn-primary" style="padding: 8px 16px" @click="$router.push(`/admin/quiz/${quiz.id}/console`)">
               打开控制台
             </button>
-            <button class="btn btn-primary" style="padding: 8px 16px" @click="openEditor()">＋ 添加题目</button>
+            <button v-if="quiz.status === 'WAITING'" class="btn btn-ghost" style="padding: 8px 16px" @click="openEditor()">＋ 添加题目</button>
           </div>
         </div>
         <p v-if="quiz.status !== 'WAITING'" class="text-dim" style="font-size: 13px; margin-bottom: 10px">

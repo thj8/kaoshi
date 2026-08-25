@@ -25,16 +25,16 @@
           <span class="tag">邀请码 <b style="color: var(--warn)">{{ q.invite_code }}</b></span>
         </div>
         <div style="display: flex; gap: 8px">
-          <button class="btn btn-primary" style="flex: 1; padding: 9px" @click="$router.push(`/admin/quiz/${q.id}`)">
-            编辑
+          <button class="btn btn-primary" style="flex: 1; padding: 9px" @click="$router.push(`/admin/quiz/${q.id}/console`)">
+            控制台
           </button>
           <button
-            v-if="q.status !== 'WAITING'"
+            v-if="q.status === 'WAITING'"
             class="btn btn-ghost"
             style="flex: 1; padding: 9px"
-            @click="$router.push(`/admin/quiz/${q.id}/console`)"
+            @click="$router.push(`/admin/quiz/${q.id}`)"
           >
-            控制台
+            编辑
           </button>
           <button
             v-if="q.status === 'WAITING'"
