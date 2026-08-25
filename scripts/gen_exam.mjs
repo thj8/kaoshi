@@ -34,9 +34,11 @@ if (!at) throw new Error('admin 登录失败')
 
 // ---------- 2. 选手账号 ----------
 for (const u of [
-  { username: 'player1', password: 'player12345', nickname: '选手一号' },
-  { username: 'player2', password: 'player12345', nickname: '选手二号' },
-  { username: 'player3', password: 'player12345', nickname: '选手三号' },
+  { username: 'zhangwei', password: 'zhangwei12345', nickname: '张伟' },
+  { username: 'liuyang', password: 'liuyang12345', nickname: '刘洋' },
+  { username: 'chenjing', password: 'chenjing12345', nickname: '陈静' },
+  { username: 'wangfang', password: 'wangfang12345', nickname: '王芳' },
+  { username: 'zhaolei', password: 'zhaolei12345', nickname: '赵磊' },
 ]) {
   const r = await j('POST', '/api/admin/users', u, at)
   if (r.code !== 0) throw new Error('建号失败: ' + r.msg)
@@ -121,5 +123,6 @@ for (let i = 5; i < 10; i++) await mk('multiple', MULTI, i, 6, false, 40)
 console.log(`✅ 已生成「计分规则验证赛」#${quiz.id}（30 题，共 100 分）`)
 console.log('   必答题 15 题 40 分：10 单选×2 + 5 多选×4（答错不扣分）')
 console.log('   抢答题 15 题 60 分：10 单选×3 + 5 多选×6（答错各扣对应分值：单选扣3、多选扣6）')
-console.log('   选手：player1-3 / player12345')
+console.log('   选手（用户名=姓名拼音，密码=用户名+12345）：')
+console.log('     zhangwei/张伟  liuyang/刘洋  chenjing/陈静  wangfang/王芳  zhaolei/赵磊')
 console.log(`   流程：控制台 ▶开始 → 必答题直接作答；到抢答题时点 ⚡开始抢答 → 抢到者作答（答错倒扣）`)
