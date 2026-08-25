@@ -60,7 +60,7 @@ function connect(token, onMsg) {
   const qF = (await mkQs(quizF.id, { type: 'single', content: '展示题?', answer: 'B', score: 10, required: true, time_limit: 20, options: opts(['A', 'B']) })).data
   const qM = (await mkQs(quizF.id, { type: 'multiple', content: '多选?', answer: 'AC', score: 10, required: true, time_limit: 20, options: opts(['A', 'B', 'C']) })).data
 
-  const reg = (u, n) => j('POST', '/api/auth/register', { username: u, password: 'pass1234', nickname: n })
+  const reg = (u, n) => j('POST', '/api/auth/register', { username: u, password: 'test-pass-1234', nickname: n })
   const alice = (await reg('sec_alice', 'Alice')).data
   const bob = (await reg('sec_bob', 'Bob')).data
   const eve = (await reg('sec_eve', 'Eve')).data
