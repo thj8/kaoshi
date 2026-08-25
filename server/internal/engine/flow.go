@@ -185,13 +185,17 @@ func (e *Engine) Reveal(quizID int64) error {
 	}
 	var answers []model.Answer
 	e.DB.Where("quiz_id = ? AND question_id = ?", quizID, q.ID).Find(&answers)
+
+	// 1. 公共通知（无答案/无个人字段）广播给用户；个人单播后到会覆盖它
+	e.Hub.BroadcastUsers(quizID, ws.EventAnswerReveal, base)
+	// 2. 逐人单播个人字段（只发提交过的人）
 	for _, ans := range answers {
 		mine := *base // 浅拷贝，逐人填个人字段
 		mine.MyAnswer, mine.MyScore, mine.IsCorrect = ans.Answer, ans.Score, ans.IsCorrect
 		e.Hub.SendToUser(quizID, ans.UserID, ws.EventAnswerReveal, &mine)
 	}
 
-	// 管理端：始终完整（含分布）
+	// 3. 管理端：始终完整（含正确答案/分布），仅发给管理员，绝不能广播给用户
 	adminData := &ws.RevealData{
 		QuestionID:   q.ID,
 		CorrectAns:   q.Answer,
@@ -199,7 +203,7 @@ func (e *Engine) Reveal(quizID int64) error {
 		Stats:        stats,
 		Distribution: dist,
 	}
-	e.Hub.Broadcast(quizID, ws.EventAnswerReveal, adminData)
+	e.Hub.BroadcastAdmins(quizID, ws.EventAnswerReveal, adminData)
 
 	// 公布答案后分数已定，实时更新排行榜
 	if rt.quiz.ShowRanking {
@@ -385,14 +389,14 @@ func (e *Engine) SubmitAnswer(quizID, questionID, userID int64, answer string, d
 	}
 	q := rt.questions[rt.curIndex]
 
-	// 抢答题：仅抢答成功者可作答
+	// 抢答题：仅抢答成功者可作答；纯抢答模式（mode=rush）在开窗前也不允许直接作答，防止绕过抢答
 	isRush := e.isRushQuestion(quizID, questionID)
-	if isRush {
+	if isRush || rt.quiz.Mode == model.ModeRush {
 		var cnt int64
 		e.DB.Model(&model.RushRecord{}).
 			Where("quiz_id = ? AND question_id = ? AND user_id = ?", quizID, questionID, userID).Count(&cnt)
 		if cnt == 0 {
-			return nil, errors.New("未获得本题答题资格")
+			return nil, errors.New("未获得本题答题资格（需先抢答）")
 		}
 	}
 
