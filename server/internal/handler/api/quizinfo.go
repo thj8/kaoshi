@@ -33,6 +33,22 @@ func (h *Handler) QuizBrief(c *gin.Context) {
 	})
 }
 
+// QuizList GET /api/quizzes 可加入的活动列表（仅 WAITING，供选手端展示点击）
+func (h *Handler) QuizList(c *gin.Context) {
+	var quizzes []model.Quiz
+	h.DB.Where("status = ?", model.QuizStatusWaiting).Order("id DESC").Limit(100).Find(&quizzes)
+	items := make([]gin.H, 0, len(quizzes))
+	for _, q := range quizzes {
+		var cnt int64
+		h.DB.Model(&model.Participant{}).Where("quiz_id = ?", q.ID).Count(&cnt)
+		items = append(items, gin.H{
+			"id": q.ID, "title": q.Title, "description": q.Description,
+			"mode": q.Mode, "participant_count": cnt,
+		})
+	}
+	ok(c, gin.H{"items": items})
+}
+
 // QuizInfo GET /api/quiz/:id 答题基础信息（需用户 token）
 func (h *Handler) QuizInfo(c *gin.Context) {
 	claims := c.MustGet("claims").(*auth.Claims)
