@@ -20,6 +20,7 @@ const router = createRouter({
         { path: 'users', component: () => import('../admin/UserManagePage.vue') },
         { path: 'quiz/:id', component: () => import('../admin/QuizEditPage.vue') },
         { path: 'quiz/:id/console', component: () => import('../admin/ConsolePage.vue') },
+        { path: 'quiz/:id/stats', component: () => import('../admin/StatsPage.vue') },
       ],
     },
   ],

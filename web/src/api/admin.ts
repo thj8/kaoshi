@@ -81,4 +81,19 @@ export const adminApi = {
   async deleteQuestion(qid: number) {
     return unwrap<null>(await http.delete(`/api/admin/question/${qid}`, h()))
   },
+  async statistics(quizId: number) {
+    return unwrap<Statistics>(await http.get(`/api/admin/quiz/${quizId}/statistics`, h()))
+  },
+}
+
+export interface Statistics {
+  status: string
+  participants: number
+  finished: number
+  avg_score: number
+  max_score: number
+  min_score: number
+  avg_correct_rate: number
+  questions: { index: number; question_id: number; type: string; content: string; answered: number; correct: number; wrong: number; correct_rate: number; avg_duration: number }[]
+  ranking: { rank: number; user_id: number; nickname: string; score: number; correct: number; wrong: number }[]
 }
