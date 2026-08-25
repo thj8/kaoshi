@@ -97,6 +97,10 @@ npm run build               # 类型检查 + 构建（vue-tsc + vite）
 
 ## Git 约定
 
-- 按阶段提交，消息格式：`<type>: 阶段N 描述`（如 `feat: 阶段4 普通答题流程与自动判分`），type 用 chore/feat/fix/docs
-- 提交信息用中文；不提交 node_modules、构建产物、二进制资源（见 .gitignore）
-- 修复类提交建议注明根因（如 `fix: 阶段4 修复运行时死锁（重入锁拆分）`）
+- **分支工作流（重要）**：每个阶段一个分支开发，完成后再合并回 main
+  1. 开发前：`git checkout main && git pull` → `git checkout -b feat/stageN-简短英文`（如 `feat/stage5-rush`、`feat/stage7-stats`；修复用 `fix/xxx`）
+  2. 阶段内可多次提交，消息：`<type>: 阶段N 描述`，type 用 chore/feat/fix/docs
+  3. 验证通过后：`git checkout main && git merge --no-ff feat/stageN-xxx`（保留合并记录）→ 删除分支
+  4. main 只接收合并，不直接开发提交（文档小改除外）
+- 提交信息用中文；修复类建议注明根因（如 `fix: 修复运行时死锁（重入锁拆分）`）
+- 不提交 node_modules、构建产物、二进制资源（见 .gitignore）
