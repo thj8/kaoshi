@@ -142,7 +142,8 @@ onMounted(async () => {
     try {
       const [r, mineR] = await Promise.all([userApi.quizList(), userApi.myQuizzes()])
       quizzes.value = r.items
-      mine.value = mineR.items
+      // WAITING 的比赛已在「可加入」区（带已加入标记），不重复展示
+      mine.value = mineR.items.filter(m => m.status !== 'WAITING')
     } catch {
       err.value = '活动列表加载失败，请刷新重试'
     } finally {
