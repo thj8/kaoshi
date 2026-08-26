@@ -44,7 +44,12 @@ import { items } from '../toast'
   border-radius: 50%;
   flex-shrink: 0;
 }
-.toast.error::before { background: #ff6b61; }
+.toast.error {
+  background: rgba(255, 235, 232, 0.95);
+  border: 1px solid #ff8f86;
+  color: #c0392b;
+}
+.toast.error::before { background: #e0404f; }
 .toast.success::before { background: #4cd964; }
 .toast.info::before { background: #6c9bff; }
 

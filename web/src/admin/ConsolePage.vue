@@ -8,21 +8,30 @@
     </div>
 
     <div class="layout">
-      <!-- 左：题目列表 -->
-      <div class="card panel">
-        <h3 class="panel-title">题目列表</h3>
-        <div
-          v-for="(q, i) in questions"
-          :key="q.id"
-          class="q-item"
-          :class="{ cur: i === curIndex }"
-        >
-          <span class="q-no">{{ String(i + 1).padStart(2, '0') }}</span>
-          <span>{{ typeText(q.type) }}</span>
-          <span class="text-dim" style="font-size: 12px">{{ q.score }}分</span>
-          <span v-if="i === curIndex" style="color: var(--primary); font-size: 12px">● 当前</span>
+      <!-- 左：题目列表（视口内滚动，自动跟随当前题） -->
+      <div class="card panel q-panel">
+        <div class="q-head">
+          <h3 class="panel-title" style="margin-bottom:0">题目列表</h3>
+          <span class="q-count">{{ questions.length }}</span>
         </div>
-        <p v-if="questions.length === 0" class="text-dim">暂无题目</p>
+        <div class="q-scroll" ref="qScroll">
+          <div
+            v-for="(q, i) in questions"
+            :key="q.id"
+            class="q-item"
+            :class="{ cur: i === curIndex, done: i < curIndex, rush: !q.required }"
+            :ref="(el) => { if (i === curIndex) curEl = el as HTMLElement }"
+          >
+            <span class="q-mode">{{ q.required ? '必' : '抢' }}</span>
+            <span class="q-no">{{ String(i + 1).padStart(2, '0') }}</span>
+            <span class="text-dim" style="font-size: 11px; margin-left: auto">{{ q.score }}分</span>
+          </div>
+          <p v-if="questions.length === 0" class="text-dim">暂无题目</p>
+        </div>
+        <div class="q-foot text-dim" v-if="curIndex >= 0">
+          <div class="q-progress"><div class="q-progress-fill" :style="{ width: ((curIndex + 1) / questions.length) * 100 + '%' }"></div></div>
+          <span style="font-size: 11px">{{ curIndex + 1 }} / {{ questions.length }}</span>
+        </div>
       </div>
 
       <!-- 中：当前题 -->
@@ -49,39 +58,32 @@
               <span v-if="distribution[o.label]" class="dist-chip">{{ distribution[o.label] }}人</span>
             </div>
           </div>
+
+          <!-- 抢答结果条（大屏投影） -->
+          <div v-if="rushWinners.length > 0" class="rush-result">
+            <div class="rr-hero">
+              <span class="rr-bolt">⚡</span>
+              <div class="rr-hero-text">
+                <b>{{ rushWinners.map((w) => w.nickname).join('、') }}</b>
+                <small>抢到了 · 抢答奖励 +{{ rushWinners[0].bonus }}分</small>
+              </div>
+            </div>
+            <div class="rr-sec">
+              <small>回答答案</small>
+              <b class="rr-ans" :class="revealed ? (winnerCorrect ? 'ok' : 'no') : ''">{{ winnerAnswer || '作答中…' }}</b>
+            </div>
+            <div v-if="revealed" class="rr-sec">
+              <small>正确答案</small>
+              <b class="rr-ans ok">{{ curQuestion.answer }}</b>
+            </div>
+            <div v-if="revealed" class="rr-sec">
+              <small>答题得分</small>
+              <b class="rr-ans" :class="winnerCorrect ? 'ok' : 'no'">{{ winnerCorrect ? '+' + curQuestion.score : '未得分' }}</b>
+            </div>
+          </div>
         </template>
       </div>
 
-      <!-- 右：实时数据 -->
-      <div class="card panel">
-        <!-- 抢答获答者 -->
-        <div v-if="rushWinners.length > 0" class="rush-box">
-          <h3 class="panel-title" style="color: var(--danger)">⚡ 抢答获答者</h3>
-          <div v-for="w in rushWinners" :key="w.user_id" class="rush-winner-row">
-            <span class="rk" :class="'top' + Math.min(w.rank, 3)">{{ w.rank }}</span>
-            <span style="flex: 1">{{ w.nickname }}</span>
-            <span class="text-dim" style="font-size: 12px">+{{ w.bonus }}分</span>
-          </div>
-        </div>
-
-        <h3 class="panel-title">实时数据</h3>
-        <div class="stat-grid">
-          <div class="stat"><div class="n">{{ stats.participants }}</div><div class="l">参与人数</div></div>
-          <div class="stat"><div class="n">{{ stats.answered }}</div><div class="l">已答</div></div>
-          <div class="stat"><div class="n">{{ stats.participants - stats.answered }}</div><div class="l">未答</div></div>
-          <div class="stat"><div class="n" style="color: var(--success)">{{ stats.correct }}</div><div class="l">正确</div></div>
-          <div class="stat"><div class="n" style="color: var(--danger)">{{ stats.wrong }}</div><div class="l">错误</div></div>
-          <div class="stat"><div class="n" style="color: var(--warn)">{{ stats.max_score }}</div><div class="l">最高分</div></div>
-        </div>
-
-        <h3 class="panel-title" style="margin-top: 18px">答案分布</h3>
-        <div v-if="Object.keys(distribution).length === 0" class="text-dim" style="font-size: 13px">暂无提交</div>
-        <div v-for="(cnt, ans) in distribution" :key="ans" class="dist-row">
-          <span class="dist-label">{{ ans === '-' ? '未答' : ans }}</span>
-          <div class="dist-bar-wrap"><div class="dist-bar" :style="{ width: barWidth(cnt) }"></div></div>
-          <span class="text-dim" style="font-size: 12px">{{ cnt }}</span>
-        </div>
-      </div>
     </div>
 
     <!-- 底部控制 -->
@@ -102,7 +104,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { adminApi, type Quiz, type Question } from '../api/admin'
 import { adminToken } from '../api/admin'
@@ -117,6 +119,8 @@ const quiz = ref<Quiz | null>(null)
 const questions = ref<Question[]>([])
 const status = ref('WAITING')
 const curIndex = ref(-1)
+const qScroll = ref<HTMLElement | null>(null)
+const curEl = ref<HTMLElement | null>(null)
 const curQuestion = ref<Question | null>(null)
 const revealed = ref(false)
 const deadlineAt = ref(0)
@@ -139,6 +143,19 @@ const canRush = computed(
     (rushWinners.value?.length ?? 0) === 0
 )
 const statusText = computed(() => ({ WAITING: '未开始', RUNNING: '进行中', PAUSED: '已暂停', RUSHING: '抢答中', ANSWERING: '答题中', REVEALING: '公布答案', FINISHED: '已结束' } as Record<string, string>)[status.value] || status.value)
+
+/** 获答者提交的答案：抢答题 distribution 的非“-”键即其作答 */
+const winnerAnswer = computed(() => Object.keys(distribution.value).filter((k) => k !== '-').join(''))
+const winnerCorrect = computed(() => !!winnerAnswer.value && winnerAnswer.value === curQuestion.value?.answer)
+watch(curIndex, () => {
+  nextTick(() => {
+    const box = qScroll.value, el = curEl.value
+    if (!box || !el) return
+    const top = el.offsetTop - box.clientHeight / 2 + el.offsetHeight / 2
+    box.scrollTo({ top: Math.max(0, top), behavior: 'smooth' })
+  })
+})
+
 
 onMounted(async () => {
   const { quiz: q } = await adminApi.getQuiz(quizId)
@@ -279,10 +296,6 @@ async function copyLink() {
   }
 }
 
-function barWidth(cnt: number) {
-  const total = Object.values(distribution.value).reduce((a, b) => a + b, 0) || 1
-  return `${Math.max(4, Math.round((cnt / total) * 100))}%`
-}
 </script>
 
 <style scoped>
@@ -291,7 +304,7 @@ function barWidth(cnt: number) {
 }
 .layout {
   display: grid;
-  grid-template-columns: 220px 1fr 300px;
+  grid-template-columns: 300px 1fr;
   gap: 14px;
   align-items: start;
 }
@@ -303,23 +316,100 @@ function barWidth(cnt: number) {
   color: var(--text-dim);
   margin-bottom: 12px;
 }
+.q-panel {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 200px);
+  position: sticky;
+  top: 14px;
+}
+.q-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.q-count {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--primary);
+  background: rgba(108, 123, 255, 0.12);
+  border-radius: 999px;
+  padding: 2px 10px;
+}
+.q-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  align-content: start;
+}
 .q-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: 10px;
-  margin-bottom: 6px;
-  font-size: 14px;
-  border: 1px solid transparent;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  border: 1px solid var(--border);
+  transition: border-color 0.2s, background 0.2s;
+}
+.q-item.done {
+  border-color: var(--success);
+  opacity: 0.55;
 }
 .q-item.cur {
   background: rgba(108, 123, 255, 0.12);
   border-color: var(--primary);
+  opacity: 1;
+  box-shadow: 0 0 0 1px var(--primary);
+}
+.q-item.cur .q-no::after {
+  content: '▸';
+  margin-left: 4px;
+}
+.q-mode {
+  font-size: 11px;
+  font-weight: 800;
+  width: 18px;
+  height: 18px;
+  line-height: 18px;
+  text-align: center;
+  border-radius: 5px;
+  flex: none;
+  color: #fff;
+  background: var(--primary);
+}
+.q-item.rush .q-mode {
+  background: linear-gradient(135deg, #ff7062, #e0404f);
 }
 .q-no {
   font-weight: 800;
+  font-variant-numeric: tabular-nums;
   color: var(--primary);
+}
+.q-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+.q-progress {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--bg-soft);
+  overflow: hidden;
+}
+.q-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary), var(--primary-strong));
+  border-radius: 2px;
+  transition: width 0.3s ease;
 }
 .q-meta {
   display: flex;
@@ -355,6 +445,78 @@ function barWidth(cnt: number) {
   margin-left: auto;
   font-size: 12px;
   color: var(--text-dim);
+}
+/* 抢答结果条（大屏） */
+.rush-result {
+  margin-top: 18px;
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--bg-soft);
+  padding: 14px 18px;
+}
+.rr-hero {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+.rr-bolt {
+  font-size: 30px;
+  line-height: 1;
+  filter: drop-shadow(0 0 10px rgba(255, 176, 32, 0.6));
+  animation: boltPulse 1.2s ease-in-out infinite;
+}
+@keyframes boltPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+}
+.rr-hero-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.rr-hero-text b {
+  font-size: 22px;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rr-hero-text small {
+  font-size: 12px;
+  color: var(--warn);
+}
+.rr-sec {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 18px;
+  border-left: 1px solid var(--border);
+  min-width: 110px;
+}
+.rr-sec small {
+  font-size: 12px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.rr-ans {
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.rr-ans.ok { color: var(--success); }
+.rr-ans.no { color: var(--danger); }
+@media (prefers-reduced-motion: reduce) {
+  .rr-bolt { animation: none; }
 }
 .rush-box {
   background: rgba(255, 93, 108, 0.08);

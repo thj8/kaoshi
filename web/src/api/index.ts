@@ -10,6 +10,17 @@ export const http = axios.create({
   timeout: 10000,
 })
 
+// 业务错误（HTTP 200 + code!=0）统一转为异常，形状对齐 axios 错误，
+// 各处 catch 里 e.response.data.msg 直接可用
+http.interceptors.response.use((r) => {
+  if (r.data && typeof r.data.code === 'number' && r.data.code !== 0) {
+    const err: any = new Error(r.data.msg || '请求失败')
+    err.response = { data: r.data }
+    return Promise.reject(err)
+  }
+  return r
+})
+
 /** 统一响应体 { code, msg, data } */
 export interface Resp<T = unknown> {
   code: number

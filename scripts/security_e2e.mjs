@@ -84,6 +84,25 @@ function connect(token, onMsg) {
   const noJoin = await j('POST', `/api/question/${qN.id}/answer`, { answer: 'A', duration: 100 }, eve.token)
   check('C3 未参加者提交被拒', noJoin.code !== 0, `code=${noJoin.code}`)
 
+  // ---------- 1b. 普通模式混合题：抢答题在抢答前不可直接作答（防绕过抢答） ----------
+  const quizX = (await mkQ('sec-mixed', 'normal', { rush_enabled: true, rush_time: 15, rush_answer_time: 20 })).data
+  const qX = (await mkQs(quizX.id, { type: 'single', content: '混合抢答题?', answer: 'B', score: 10, required: false, time_limit: 20, options: opts(['A', 'B']) })).data
+  const jX_a = (await j('POST', '/api/join', { quiz_id: quizX.id }, alice.token)).data
+  await j('POST', `/api/admin/quiz/${quizX.id}/start`, {}, at)
+  await sleep(300)
+  const xPreRush = await j('POST', `/api/question/${qX.id}/answer`, { answer: 'B', duration: 100 }, jX_a.token)
+  check('X1 开窗前直接提交被拒(核心)', xPreRush.code !== 0 && /资格|不可作答/.test(xPreRush.msg || ''), `code=${xPreRush.code} msg=${xPreRush.msg}`)
+  await j('POST', `/api/admin/quiz/${quizX.id}/rush/start`, {}, at)
+  await sleep(300)
+  const xDuringRush = await j('POST', `/api/question/${qX.id}/answer`, { answer: 'B', duration: 100 }, jX_a.token)
+  check('X2 窗口开启中未抢先答被拒', xDuringRush.code !== 0, `code=${xDuringRush.code} msg=${xDuringRush.msg}`)
+  const xRush = await j('POST', `/api/question/${qX.id}/rush`, {}, jX_a.token)
+  check('X3 Alice 抢答成功', xRush.code === 0 && xRush.data?.rank === 1, `code=${xRush.code}`)
+  await j('POST', `/api/admin/quiz/${quizX.id}/rush/end`, {}, at)
+  await sleep(300)
+  const xAfterRush = await j('POST', `/api/question/${qX.id}/answer`, { answer: 'B', duration: 100 }, jX_a.token)
+  check('X4 抢到后可提交', xAfterRush.code === 0, `code=${xAfterRush.code} msg=${xAfterRush.msg}`)
+
   // ---------- 2. 抢答权限（问题1） ----------
   await j('POST', `/api/admin/quiz/${quizR.id}/start`, {}, at)
   const rushPhaseSubmit = await j('POST', `/api/question/${qR.id}/answer`, { answer: 'B', duration: 100 }, jR_a.token)
