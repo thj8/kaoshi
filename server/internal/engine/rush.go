@@ -44,6 +44,8 @@ var (
 	ErrRushNotActive = errors.New("当前不在抢答阶段")
 	ErrAlreadyRushed = errors.New("已抢答过")
 	ErrRushFull      = errors.New("很遗憾，本题抢答资格已被其他用户获得")
+	ErrRushRepeatWin  = errors.New("重复抢答：你已抢到过本题")
+	ErrRushRepeatFail = errors.New("重复抢答：此前未抢到，结果不变")
 )
 
 // ---------- 管理端：开始抢答 ----------
@@ -183,7 +185,7 @@ func (e *Engine) rushEndLocked(rt *Runtime) error {
 // ---------- 用户端：抢答提交 ----------
 
 // RushSubmit 抢答：Redis Lua 原子判序，成功即记 DB + 加奖励分
-func (e *Engine) RushSubmit(quizID, questionID, userID int64) (*ws.RushResultData, error) {
+func (e *Engine) RushSubmit(quizID, questionID, userID int64) (result *ws.RushResultData, err error) {
 	rt, err := e.Get(quizID)
 	if err != nil {
 		return nil, ErrNotFound
@@ -191,11 +193,31 @@ func (e *Engine) RushSubmit(quizID, questionID, userID int64) (*ws.RushResultDat
 	rt.mu.Lock()
 	defer rt.mu.Unlock()
 
-	if rt.quiz.Status != model.QuizStatusRushing {
-		// 窗口刚关闭（名额已满自动结束）：给出准确失败原因
-		k1, k2 := rushKeys(quizID, questionID)
+	// 结果日志（defer 覆盖所有分支；发起日志在 handler，接口调用即记）
+	var u model.User
+	e.DB.First(&u, userID)
+	idx := rt.curIndex + 1
+	rank := 0
+	defer func() {
+		if err == nil {
+			log.Printf("[rush] quiz=%d 第%d题 %s 抢到 rank=%d/%d", quizID, idx, u.Nickname, rank, rt.quiz.RushWinnerCount)
+		} else {
+			log.Printf("[rush] quiz=%d 第%d题 %s 未抢到：%v", quizID, idx, u.Nickname, err)
+		}
+	}()
 
-		if e.RDB.Exists(context.Background(), k1).Val() > 0 || e.RDB.Exists(context.Background(), k2).Val() > 0 {
+	if rt.quiz.Status != model.QuizStatusRushing {
+		// 窗口已关（名额满自动结束）：先区分本人重复抢答，再报满员/未开抢
+		k1, k2 := rushKeys(quizID, questionID)
+		uid := fmt.Sprintf("%d", userID)
+		ctx := context.Background()
+		if e.RDB.ZScore(ctx, k1, uid).Err() == nil {
+			return nil, ErrRushRepeatWin
+		}
+		if e.RDB.SIsMember(ctx, k2, uid).Val() {
+			return nil, ErrRushRepeatFail
+		}
+		if e.RDB.Exists(ctx, k1).Val() > 0 || e.RDB.Exists(ctx, k2).Val() > 0 {
 			return nil, ErrRushFull
 		}
 		return nil, ErrRushNotActive
@@ -226,19 +248,17 @@ func (e *Engine) RushSubmit(quizID, questionID, userID int64) (*ws.RushResultDat
 
 	switch res {
 	case -1:
-		return nil, ErrAlreadyRushed
-	case -2, -3:
-		// 名额已满 → 失败（fail set 已记录，重连恢复状态用）；留痕日志
-		var uf model.User
-		e.DB.First(&uf, userID)
-		log.Printf("[rush] quiz=%d 第%d题 %s 未抢到（名额已满）", quizID, rt.curIndex+1, uf.Nickname)
+		return nil, ErrRushRepeatWin
+	case -3:
+		return nil, ErrRushRepeatFail
+	case -2:
+		// 名额已满 → 失败（fail set 已记录，重连恢复状态用）
 		e.Hub.SendToUser(quizID, userID, ws.EventRushFailed, &ws.RushResultData{
 			QuestionID: questionID, Rank: 0, Reason: "full",
 		})
 		return nil, ErrRushFull
 	}
-
-	rank := int(res) + 1 // 0-based → 1-based
+	rank = int(res) + 1 // 0-based → 1-based
 	bonus := 0 // 抢答奖励分已下线：抢答资格只决定谁能作答，得分一律走判分口径
 
 	// DB 记录（唯一索引兜底防重复计分）
@@ -251,25 +271,20 @@ func (e *Engine) RushSubmit(quizID, questionID, userID int64) (*ws.RushResultDat
 		e.RDB.ZRem(context.Background(), k1, fmt.Sprintf("%d", userID))
 		return nil, ErrAlreadyRushed
 	}
-
 	var p model.Participant
 	e.DB.Where("quiz_id = ? AND user_id = ?", quizID, userID).First(&p)
 
-	var u model.User
-	e.DB.First(&u, userID)
-	log.Printf("[rush] quiz=%d 第%d题 %s 抢到 rank=%d/%d",
-		quizID, rt.curIndex+1, u.Nickname, rank, rt.quiz.RushWinnerCount)
-
-	result := &ws.RushResultData{
+	result = &ws.RushResultData{
 		QuestionID: questionID, Rank: rank, Nickname: u.Nickname,
 		Bonus: bonus, Score: p.Score,
 	}
 	e.Hub.SendToUser(quizID, userID, ws.EventRushSuccess, result)
 	e.broadcastStatistics(quizID, questionID)
 
-	// 名额满 → 提前结束抢答窗口（持锁内直接调用 rushEndLocked）
+	// 名额满 → 不立刻关窗：至少保留 200ms，让慢半拍的选手也有"未抢到"的参与反馈
+	// （rushEndLocked 幂等：原窗口计时器若先触发也只是空跑）
 	if rank >= rt.quiz.RushWinnerCount {
-		_ = e.rushEndLocked(rt)
+		rt.startRushTimerLocked(200*time.Millisecond, func() { e.RushEnd(quizID) })
 	}
 	return result, nil
 }
