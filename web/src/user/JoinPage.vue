@@ -31,13 +31,31 @@
         <button class="btn btn-primary go">进入答题</button>
       </div>
 
+      <!-- 我参加过的比赛（含已结束） -->
+      <template v-if="!linkBrief && mine.length">
+        <div class="mine-title">我参加过的比赛</div>
+        <div v-for="m in mine" :key="m.quiz_id" class="quiz-row" @click="goMine(m)">
+          <div class="row-main">
+            <div class="row-title">{{ m.title }}</div>
+            <div class="row-meta">
+              <span class="m-item">#{{ m.quiz_id }}</span>
+              <span class="dot"></span>
+              <span>{{ statusText(m.status) }}</span>
+              <span class="dot"></span>
+              <span>我的 {{ m.score }} 分（对{{ m.correct }}/错{{ m.wrong }}）</span>
+            </div>
+          </div>
+          <span class="chev">{{ m.status === 'FINISHED' ? '成绩' : '进入' }} ›</span>
+        </div>
+      </template>
+
       <!-- 活动列表（可加入 = WAITING） -->
-      <template v-else>
+      <template v-if="!linkBrief">
         <p v-if="loadingList" class="empty">加载中…</p>
         <template v-else-if="quizzes.length">
           <div v-for="q in quizzes" :key="q.id" class="quiz-row" @click="go(q.id)">
             <div class="row-main">
-              <div class="row-title">{{ q.title }}</div>
+              <div class="row-title">{{ q.title }} <span v-if="q.joined" class="tag" style="margin-left:6px;font-size:12px">已加入</span></div>
               <div class="row-meta">
                 <span class="m-item">#{{ q.id }}</span>
                 <span class="dot"></span>
@@ -70,7 +88,33 @@ const router = useRouter()
 const joining = ref(false)
 const loadingList = ref(true)
 const err = ref('')
-const quizzes = ref<{ id: number; title: string; description: string; mode: string; participant_count: number }[]>([])
+const quizzes = ref<{ id: number; title: string; description: string; mode: string; participant_count: number; joined: boolean }[]>([])
+const mine = ref<{ quiz_id: number; title: string; status: string; mode: string; score: number; correct: number; wrong: number; joined_at: string; participant_count: number }[]>([])
+
+const STATUS: Record<string, string> = {
+  WAITING: '未开始', RUNNING: '进行中', PAUSED: '已暂停', RUSHING: '抢答中',
+  ANSWERING: '答题中', REVEALING: '公布中', FINISHED: '已结束',
+}
+const statusText = (st: string) => STATUS[st] || st
+
+/** 已结束 → 回看成绩/排行；进行中 → 回到答题页 */
+async function goMine(m: { quiz_id: number; status: string }) {
+  joining.value = true
+  err.value = ''
+  try {
+    // 已结束且无 token：重新 join 换 token（老参与者可换）再看成绩
+    if (!localStorage.getItem(LS.userToken(m.quiz_id))) {
+      const { token, quiz, user } = await userApi.joinQuiz(m.quiz_id)
+      localStorage.setItem(LS.userToken(quiz.id), token)
+      localStorage.setItem(LS.userId(quiz.id), String(user.id))
+      localStorage.setItem(LS.nickname(quiz.id), user.nickname)
+    }
+    router.replace(m.status === 'FINISHED' ? `/rank/${m.quiz_id}` : `/quiz/${m.quiz_id}`)
+  } catch (e: any) {
+    joining.value = false
+    err.value = e?.response?.data?.msg || '进入失败'
+  }
+}
 const linkBrief = ref<{ id: number; title: string; description: string } | null>(null)
 const nick = computed(() => localStorage.getItem(LS.userNick) || '已登录')
 
@@ -94,10 +138,11 @@ onMounted(async () => {
       err.value = '答题活动不存在'
     }
   } else {
-    // 活动列表
+    // 活动列表 + 我参加过的
     try {
-      const r = await userApi.quizList()
+      const [r, mineR] = await Promise.all([userApi.quizList(), userApi.myQuizzes()])
       quizzes.value = r.items
+      mine.value = mineR.items
     } catch {
       err.value = '活动列表加载失败，请刷新重试'
     } finally {
@@ -137,6 +182,13 @@ async function go(quizId: number) {
 </script>
 
 <style scoped>
+.mine-title {
+  font-size: 13px;
+  letter-spacing: 1px;
+  opacity: 0.75;
+  margin: 18px 2px 8px;
+}
+
 .join-wrap {
   max-width: 560px;
   margin: 0 auto;

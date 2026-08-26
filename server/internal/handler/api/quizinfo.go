@@ -33,17 +33,57 @@ func (h *Handler) QuizBrief(c *gin.Context) {
 	})
 }
 
-// QuizList GET /api/quizzes 可加入的活动列表（仅 WAITING，供选手端展示点击）
+// QuizList GET /api/quizzes 可加入的活动列表（仅 WAITING；受限且未受邀的不可见）
 func (h *Handler) QuizList(c *gin.Context) {
+	claims := c.MustGet("claims").(*auth.Claims)
 	var quizzes []model.Quiz
 	h.DB.Where("status = ?", model.QuizStatusWaiting).Order("id DESC").Limit(100).Find(&quizzes)
 	items := make([]gin.H, 0, len(quizzes))
 	for _, q := range quizzes {
-		var cnt int64
+		// 受限且未受邀 → 不可见
+		var invAll, invMe int64
+		h.DB.Model(&model.QuizInvitee{}).Where("quiz_id = ?", q.ID).Count(&invAll)
+		if invAll > 0 {
+			h.DB.Model(&model.QuizInvitee{}).Where("quiz_id = ? AND user_id = ?", q.ID, claims.UserID).Count(&invMe)
+			if invMe == 0 {
+				continue
+			}
+		}
+		var cnt, joined int64
 		h.DB.Model(&model.Participant{}).Where("quiz_id = ?", q.ID).Count(&cnt)
+		h.DB.Model(&model.Participant{}).Where("quiz_id = ? AND user_id = ?", q.ID, claims.UserID).Count(&joined)
 		items = append(items, gin.H{
 			"id": q.ID, "title": q.Title, "description": q.Description,
 			"mode": q.Mode, "participant_count": cnt,
+			"joined": joined > 0,
+		})
+	}
+	ok(c, gin.H{"items": items})
+}
+
+// MyQuizzes GET /api/my/quizzes 我参加过的全部比赛（含已结束）
+func (h *Handler) MyQuizzes(c *gin.Context) {
+	claims := c.MustGet("claims").(*auth.Claims)
+	rows := []struct {
+		model.Participant
+		Title  string
+		Status string
+		Mode   string
+	}{}
+	h.DB.Table("participants").
+		Select("participants.*, quizzes.title AS title, quizzes.status AS status, quizzes.mode AS mode").
+		Joins("JOIN quizzes ON quizzes.id = participants.quiz_id").
+		Where("participants.user_id = ?", claims.UserID).
+		Order("quizzes.status = 'FINISHED', quizzes.id DESC").
+		Limit(200).Scan(&rows)
+	items := make([]gin.H, 0, len(rows))
+	for _, r := range rows {
+		var cnt int64
+		h.DB.Model(&model.Participant{}).Where("quiz_id = ?", r.QuizID).Count(&cnt)
+		items = append(items, gin.H{
+			"quiz_id": r.QuizID, "title": r.Title, "status": r.Status, "mode": r.Mode,
+			"score": r.Score, "correct": r.CorrectCount, "wrong": r.WrongCount,
+			"joined_at": r.JoinedAt, "participant_count": cnt,
 		})
 	}
 	ok(c, gin.H{"items": items})

@@ -164,6 +164,14 @@ type Answer struct {
 	SubmittedAt time.Time `json:"submitted_at"`
 }
 
+// 比赛邀请名单（非空=仅名单内用户可加入；为空=开放所有人）
+type QuizInvitee struct {
+	ID        int64     `gorm:"primaryKey;autoIncrement" json:"id"`
+	QuizID    int64     `gorm:"notNull;uniqueIndex:idx_invitee" json:"quiz_id"`
+	UserID    int64     `gorm:"notNull;uniqueIndex:idx_invitee" json:"user_id"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 // 抢答记录（quiz+question+user 唯一，防重复抢答/得分）
 type RushRecord struct {
 	ID         int64     `gorm:"primaryKey;autoIncrement" json:"id"`
@@ -186,5 +194,6 @@ func AllModels() []any {
 		&Participant{},
 		&Answer{},
 		&RushRecord{},
+		&QuizInvitee{},
 	}
 }

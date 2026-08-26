@@ -124,6 +124,66 @@ function connect(token, onMsg) {
   const xWrong = await j('POST', `/api/question/${qX2.id}/answer`, { answer: 'B', duration: 100 }, jX_a.token)
   check('S2 抢答答错按题型扣分(-4)', xWrong.code === 0 && xWrong.data?.score === -4 && xWrong.data?.total_score === 6, `score=${xWrong.data?.score} total=${xWrong.data?.total_score}`)
 
+  // ---------- 1c. 邀请制 + 我的比赛（quiz_invitees，X 系列） ----------
+  const quizV = (await mkQ('sec-invite', 'normal', { show_ranking: true })).data // 受限赛
+  const quizO = (await mkQ('sec-open', 'normal', {})).data // 开放赛（名单为空）
+  const qV = (await mkQs(quizV.id, { type: 'single', content: '邀请制题?', answer: 'A', score: 10, required: true, time_limit: 30, options: opts(['A', 'B']) })).data
+  // X5 名单设置与读取（重复 id 幂等去重）
+  const putInv = await j('PUT', `/api/admin/quiz/${quizV.id}/invitees`, { user_ids: [alice.user.id, alice.user.id, bob.user.id] }, at)
+  const getInv = await j('GET', `/api/admin/quiz/${quizV.id}/invitees`, null, at)
+  const invIds = (getInv.data?.items || []).map(i => i.user_id).sort().join(',')
+  check('X5 名单设置与读取(含去重)', putInv.code === 0 && getInv.code === 0 && invIds === [alice.user.id, bob.user.id].sort().join(',') && getInv.data.items.every(i => i.username && i.nickname), `put=${putInv.code} ids=${invIds}`)
+  // X12 越权：用户 token 调 admin 接口
+  const invByUser = await j('GET', `/api/admin/quiz/${quizV.id}/invitees`, null, alice.token)
+  check('X12 用户调名单接口被拒', invByUser.code === 401, `code=${invByUser.code}`)
+  // X6 受邀者可加入
+  const jV_b = (await j('POST', '/api/join', { quiz_id: quizV.id }, bob.token)).data
+  check('X6 受邀者可加入', jV_b.token && jV_b.quiz?.id === quizV.id, `code=${jV_b.code}`)
+  // X7 未受邀者被拒；直链 brief 仍公开
+  const jV_e = await j('POST', '/api/join', { quiz_id: quizV.id }, eve.token)
+  const briefV = await j('GET', `/api/quiz/${quizV.id}/brief`)
+  check('X7 未受邀者被拒(403)/brief公开', jV_e.code === 403 && briefV.code === 0, `join=${jV_e.code} brief=${briefV.code}`)
+  // X8 列表可见性：eve 看不到受限赛，bob 能看到；X13 joined 标记
+  const listE = await j('GET', '/api/quizzes', null, eve.token)
+  const listB = await j('GET', '/api/quizzes', null, bob.token)
+  const idsE = (listE.data?.items || []).map(i => i.id)
+  const rowB = (listB.data?.items || []).find(i => i.id === quizV.id)
+  check('X8 受限赛对未受邀者不可见', !idsE.includes(quizV.id) && !!rowB, `eve sees=${idsE.includes(quizV.id)}`)
+  check('X13 已加入标记 joined=true', rowB?.joined === true, `joined=${rowB?.joined}`)
+  // X9 开放回归：名单为空任何人可加入
+  const jO_e = (await j('POST', '/api/join', { quiz_id: quizO.id }, eve.token)).data
+  check('X9 空名单开放可加入', jO_e.token && jO_e.quiz?.id === quizO.id, `code=${jO_e.code}`)
+  // X14 我的比赛-进行中：alice 打一场（受限赛，受邀）
+  const jV_a = (await j('POST', '/api/join', { quiz_id: quizV.id }, alice.token)).data
+  await j('POST', `/api/admin/quiz/${quizV.id}/start`, {}, at); await sleep(300)
+  const myMid = await j('GET', '/api/my/quizzes', null, alice.token)
+  const rowV = (myMid.data?.items || []).find(i => i.quiz_id === quizV.id)
+  check('X14 我的比赛含进行中', rowV && ['RUNNING', 'ANSWERING', 'RUSHING', 'PAUSED', 'REVEALING'].includes(rowV.status), `status=${rowV?.status}`)
+  await j('POST', `/api/question/${qV.id}/answer`, { answer: 'A', duration: 100 }, jV_a.token)
+  const myMid2 = await j('GET', '/api/my/quizzes', null, alice.token)
+  const rowV2 = (myMid2.data?.items || []).find(i => i.quiz_id === quizV.id)
+  check('X14b 我的比赛分数实时', rowV2?.score === 10, `score=${rowV2?.score}`)
+  // X10 状态限制：RUNNING 不能改名单
+  const putRun = await j('PUT', `/api/admin/quiz/${quizV.id}/invitees`, { user_ids: [alice.user.id] }, at)
+  check('X10 RUNNING 改名单被拒', putRun.code !== 0, `code=${putRun.code}`)
+  // X15/X16 已结束：结束赛在我的列表且分数正确；未参加者无；重入拿 token
+  await j('POST', `/api/admin/quiz/${quizV.id}/end`, {}, at)
+  const myEnd = await j('GET', '/api/my/quizzes', null, alice.token)
+  const rowVE = (myEnd.data?.items || []).find(i => i.quiz_id === quizV.id)
+  const myEndE = await j('GET', '/api/my/quizzes', null, eve.token)
+  const eveHas = (myEndE.data?.items || []).some(i => i.quiz_id === quizV.id)
+  check('X15 已结束在我的列表+分数', rowVE?.status === 'FINISHED' && rowVE?.score === 10 && !eveHas, `status=${rowVE?.status} score=${rowVE?.score} eveHas=${eveHas}`)
+  const reA = await j('POST', '/api/join', { quiz_id: quizV.id }, alice.token)
+  const reE = await j('POST', '/api/join', { quiz_id: quizV.id }, eve.token)
+  check('X16 参与者可重入/未参与者不可', reA.code === 0 && reE.code !== 0, `reA=${reA.code} reE=${reE.code}`)
+  // X11 不存在用户：整单拒绝，原名单不变
+  const putBad = await j('PUT', `/api/admin/quiz/${quizO.id}/invitees`, { user_ids: [999999] }, at)
+  const getO = await j('GET', `/api/admin/quiz/${quizO.id}/invitees`, null, at)
+  check('X11 不存在用户整单拒绝', putBad.code !== 0 && (getO.data?.items || []).length === 0, `put=${putBad.code} n=${(getO.data?.items || []).length}`)
+  // X17 无 token 访问 my 接口
+  const myNoAuth = await j('GET', '/api/my/quizzes')
+  check('X17 无 token 访问我的比赛被拒', myNoAuth.code === 401, `code=${myNoAuth.code}`)
+
   // ---------- 2. 抢答权限（问题1） ----------
   await j('POST', `/api/admin/quiz/${quizR.id}/start`, {}, at)
   const rushPhaseSubmit = await j('POST', `/api/question/${qR.id}/answer`, { answer: 'B', duration: 100 }, jR_a.token)

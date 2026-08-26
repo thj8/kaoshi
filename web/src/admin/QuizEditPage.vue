@@ -107,6 +107,45 @@
               <input v-model="cfgForm.description" class="input" :disabled="quiz.status !== 'WAITING'" />
             </div>
           </div>
+
+          <!-- 参赛用户（邀请名单）：非空=仅名单可加入 -->
+          <div class="card" style="margin-top: 16px; padding: 14px">
+            <h3 style="margin: 0 0 8px">参赛用户 <span class="tag">已选 {{ invitees.length }} 人</span> <span v-if="invitees.length === 0" class="tag" style="opacity:.7">未选 = 所有人可加入</span></h3>
+            <div v-if="quiz.status === 'WAITING'" style="display: flex; gap: 16px; flex-wrap: wrap">
+              <div style="flex: 1; min-width: 260px">
+                <div style="display: flex; gap: 6px; margin-bottom: 6px">
+                  <input v-model="invSearch" class="input" placeholder="搜索用户名/姓名" style="flex: 1" />
+                  <label class="btn btn-ghost" style="margin: 0; padding: 6px 10px; cursor: pointer"><input type="checkbox" v-model="invAllChecked" @change="toggleAll" style="margin-right: 4px" />全选</label>
+                  <button class="btn btn-primary" style="padding: 6px 12px" @click="addChecked">加入</button>
+                </div>
+                <div style="max-height: 220px; overflow: auto; border: 1px solid var(--border, #333); border-radius: 8px">
+                  <label v-for="u in filteredUsers" :key="u.id" style="display: flex; align-items: center; gap: 8px; padding: 6px 10px; cursor: pointer; border-bottom: 1px solid rgba(255,255,255,.06)">
+                    <input type="checkbox" :value="u.id" v-model="invChecked" :disabled="inInvitees(u.id)" />
+                    <span>{{ u.nickname }}</span>
+                    <span style="opacity: .6; font-size: 12px">{{ u.username }}</span>
+                    <span v-if="inInvitees(u.id)" class="tag" style="margin-left: auto">已选</span>
+                  </label>
+                  <div v-if="!filteredUsers.length" style="padding: 12px; opacity: .6">无匹配用户</div>
+                </div>
+              </div>
+              <div style="flex: 1; min-width: 260px">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px">
+                  <span style="opacity: .8">已选名单</span>
+                  <button v-if="invitees.length" class="btn btn-ghost" style="padding: 4px 10px; margin-left: auto" @click="invitees = []">清空</button>
+                </div>
+                <div style="max-height: 252px; overflow: auto; border: 1px solid var(--border, #333); border-radius: 8px">
+                  <div v-for="u in invitees" :key="u.user_id" style="display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid rgba(255,255,255,.06)">
+                    <span>{{ u.nickname }}</span>
+                    <span style="opacity: .6; font-size: 12px">{{ u.username }}</span>
+                    <button class="btn btn-ghost" style="padding: 2px 8px; margin-left: auto" @click="invitees = invitees.filter(i => i.user_id !== u.user_id)">✕</button>
+                  </div>
+                  <div v-if="!invitees.length" style="padding: 12px; opacity: .6">尚未选择（所有人可加入）</div>
+                </div>
+                <button class="btn btn-primary" style="margin-top: 8px" :disabled="invSaving" @click="saveInvitees">{{ invSaving ? '保存中...' : '保存名单' }}</button>
+              </div>
+            </div>
+            <div v-else style="opacity: .7">比赛已开始，名单不可修改。当前名单：{{ invitees.map(i => i.nickname).join('、') || '（开放所有人）' }}</div>
+          </div>
           <div class="frow" style="flex-direction: row; gap: 20px; flex-wrap: wrap">
             <label style="margin: 0"><input v-model="cfgForm.show_answer" type="checkbox" :disabled="quiz.status !== 'WAITING'" /> 公布正确答案</label>
             <label style="margin: 0"><input v-model="cfgForm.show_analysis" type="checkbox" :disabled="quiz.status !== 'WAITING'" /> 公布解析</label>
@@ -203,6 +242,43 @@ const saving = ref(false)
 
 const cfgForm = reactive<Partial<Quiz>>({})
 
+// 参赛用户（邀请名单）
+const allUsers = ref<{ id: number; username: string; nickname: string }[]>([])
+const invitees = ref<{ user_id: number; username: string; nickname: string }[]>([])
+const invSearch = ref('')
+const invChecked = ref<number[]>([])
+const invAllChecked = ref(false)
+const invSaving = ref(false)
+const filteredUsers = computed(() => {
+  const kw = invSearch.value.trim().toLowerCase()
+  const list = kw
+    ? allUsers.value.filter(u => u.username.toLowerCase().includes(kw) || u.nickname.toLowerCase().includes(kw))
+    : allUsers.value
+  return list
+})
+const inInvitees = (id: number) => invitees.value.some(i => i.user_id === id)
+function toggleAll() {
+  invChecked.value = invAllChecked.value ? filteredUsers.value.filter(u => !inInvitees(u.id)).map(u => u.id) : []
+}
+function addChecked() {
+  const have = new Set(invitees.value.map(i => i.user_id))
+  const byId = new Map(allUsers.value.map(u => [u.id, u]))
+  for (const id of invChecked.value) {
+    const u = byId.get(id)
+    if (u && !have.has(id)) invitees.value.push({ user_id: u.id, username: u.username, nickname: u.nickname })
+  }
+  invChecked.value = []
+  invAllChecked.value = false
+}
+async function saveInvitees() {
+  invSaving.value = true
+  try {
+    await adminApi.setInvitees(quizId, invitees.value.map(i => i.user_id))
+  } finally {
+    invSaving.value = false
+  }
+}
+
 // 题目编辑器
 const editing = ref(false)
 const editIndex = ref(-1)
@@ -231,6 +307,8 @@ async function load() {
   quiz.value = q
   Object.assign(cfgForm, q)
   questions.value = await adminApi.listQuestions(quizId)
+  allUsers.value = await adminApi.listUsers()
+  invitees.value = (await adminApi.listInvitees(quizId)).items
 }
 
 async function saveConfig() {
