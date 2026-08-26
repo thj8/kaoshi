@@ -80,6 +80,24 @@ function connect(token, onMsg) {
   check(`100并发抢答：rank=1 唯一`, winners.length === 1, `winners=${winners.length} losers=${losers.length} errors=${results.length - winners.length - losers.length}`)
   await j('POST', `/api/admin/quiz/${rq.id}/rush/end`, {}, at)
 
+  // ---------- 2b. 强制收卷后实时统计：未答占位行不计入已答/正确/错误 ----------
+  const quizS = (await j('POST', '/api/admin/quiz', { title: 's8-stats', mode: 'normal', per_question_time: 60, show_answer: true }, at)).data
+  const qS = (await j('POST', `/api/admin/quiz/${quizS.id}/questions`, { type: 'single', content: 'S?', answer: 'A', score: 10, required: true, sort: 1, options: [{ label: 'A', content: '1' }, { label: 'B', content: '2' }] }, at)).data
+  const us1 = await mkU(`s8s1${sfx}`), us2 = await mkU(`s8s2${sfx}`), us3 = await mkU(`s8s3${sfx}`)
+  const js1 = (await j('POST', '/api/join', { quiz_id: quizS.id }, us1.token)).data
+  const js2 = (await j('POST', '/api/join', { quiz_id: quizS.id }, us2.token)).data
+  const js3 = (await j('POST', '/api/join', { quiz_id: quizS.id }, us3.token)).data
+  await j('POST', `/api/admin/quiz/${quizS.id}/start`, {}, at); await sleep(300)
+  await j('POST', `/api/question/${qS.id}/answer`, { answer: 'A', duration: 100 }, js1.token) // 1 人答对
+  await j('POST', `/api/question/${qS.id}/answer`, { answer: 'B', duration: 100 }, js2.token) // 1 人答错
+  // us3 超时不答 → 强制收卷补未答占位行
+  await j("POST", `/api/admin/quiz/${quizS.id}/reveal`, {}, at); await sleep(300)
+  const stS = (await j('GET', `/api/admin/quiz/${quizS.id}/statistics`, null, at)).data
+  const qSt = stS.questions?.find(x => x.question_id === qS.id)
+  check('实时统计：已答不含未答占位(2/3)', qSt && qSt.answered === 2, `answered=${qSt?.answered}`)
+  check('实时统计：正确/错误不含未答(1/1)', qSt && qSt.correct === 1 && qSt.wrong === 1, `correct=${qSt?.correct} wrong=${qSt?.wrong}`)
+  check('实时统计：正确率分母为真实作答(50%)', Math.round(qSt.correct_rate) === 50, `rate=${qSt?.correct_rate}`)
+
   // ---------- 3. 断线重连恢复 ----------
   const quizC = (await j('POST', '/api/admin/quiz', { title: 's8-reconnect', mode: 'normal', per_question_time: 120 }, at)).data
   const qC = (await j('POST', `/api/admin/quiz/${quizC.id}/questions`, { type: 'single', content: 'C?', answer: 'A', score: 10, required: true, sort: 1, options: [{ label: 'A', content: '1' }, { label: 'B', content: '2' }] }, at)).data
