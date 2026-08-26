@@ -127,6 +127,8 @@ type RankingItem struct {
 	Nickname  string `json:"nickname"`
 	Score     int    `json:"score"`
 	Correct   int    `json:"correct"`
+	Wrong     int    `json:"wrong"`
+	Answered  int    `json:"answered"`
 }
 
 type RankingData struct {

@@ -657,10 +657,11 @@ func (e *Engine) buildRanking(quizID int64, limit int) []ws.RankingItem {
 		Nickname     string
 		Score        int
 		CorrectCount int
+		WrongCount   int
 	}
 	var rows []row
 	e.DB.Table("participants").
-		Select("participants.user_id, users.nickname, participants.score, participants.correct_count").
+		Select("participants.user_id, users.nickname, participants.score, participants.correct_count, participants.wrong_count").
 		Joins("JOIN users ON users.id = participants.user_id").
 		Where("participants.quiz_id = ?", quizID).
 		Order("participants.score DESC, participants.correct_count DESC, participants.joined_at ASC").
@@ -670,7 +671,8 @@ func (e *Engine) buildRanking(quizID int64, limit int) []ws.RankingItem {
 	for i, r := range rows {
 		items[i] = ws.RankingItem{
 			Rank: i + 1, UserID: r.UserID, Nickname: r.Nickname,
-			Score: r.Score, Correct: r.CorrectCount,
+			Score: r.Score, Correct: r.CorrectCount, Wrong: r.WrongCount,
+			Answered: r.CorrectCount + r.WrongCount,
 		}
 	}
 	return items

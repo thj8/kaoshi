@@ -147,22 +147,13 @@
         </div>
       </section>
 
-      <!-- 排行榜浮动入口 -->
+      <!-- 排行榜：新标签页打开大屏排行榜 -->
       <div
-        v-if="store.quiz?.show_ranking && store.status !== 'WAITING' && store.status !== 'FINISHED'"
+        v-if="store.quiz?.show_ranking"
         class="rank-fab"
-        @click="showRanking = !showRanking"
+        title="实时排行榜（新窗口）"
+        @click="openRank"
       >榜</div>
-      <div v-if="showRanking" class="card rank-panel">
-        <h3>实时排行榜</h3>
-        <div v-for="r in ranking" :key="r.user_id" class="rank-row" :class="{ me: r.user_id === store.me?.user_id }">
-          <span class="rk" :class="'top' + Math.min(r.rank, 3)">{{ r.rank }}</span>
-          <span class="rank-name">{{ r.nickname }}</span>
-          <span class="text-dim rank-correct">对{{ r.correct }}</span>
-          <b>{{ r.score }} 分</b>
-        </div>
-        <p v-if="ranking.length === 0" class="text-dim">暂无数据</p>
-      </div>
     </main>
 
     <!-- 底部固定圆形抢答按钮（页面最重要操作，不随内容滚动） -->
@@ -212,7 +203,7 @@ let cdTimer: number | null = null
 const lastResult = ref<AnswerResultData | null>(null)
 const ranking = ref<RankingItem[]>([])
 const result = ref<Record<string, any> | null>(null)
-const showRanking = ref(false)
+
 const rushTotal = ref(1)
 
 /** 服务器时间偏移（server_now - Date.now()） */
@@ -469,6 +460,10 @@ function toggle(label: string) {
     else selected.value.push(label)
     selected.value.sort()
   }
+}
+
+function openRank() {
+  window.open(`/rank/${quizId}`, '_blank')
 }
 
 async function doRush() {
