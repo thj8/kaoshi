@@ -31,7 +31,7 @@
             <span class="q-no">{{ String(i + 1).padStart(2, '0') }}</span>
             <span class="tag">{{ typeText(q.type) }}</span>
             <span class="tag">{{ q.score }}分</span>
-            <span class="tag">{{ q.required ? '必答' : '可跳过' }}</span>
+            <span class="tag" :class="q.required ? '' : 'rush'">{{ q.required ? '必答' : '抢答' }}</span>
             <span v-if="q.time_limit" class="tag">{{ q.time_limit }}s</span>
             <span class="tag" style="color: var(--success)">答案 {{ q.answer }}</span>
             <span style="flex: 1"></span>
@@ -62,13 +62,6 @@
               <input v-model="cfgForm.title" class="input" :disabled="quiz.status !== 'WAITING'" />
             </div>
             <div class="frow">
-              <label>答题模式</label>
-              <select v-model="cfgForm.mode" class="input" :disabled="quiz.status !== 'WAITING'">
-                <option value="normal">普通模式</option>
-                <option value="rush">抢答模式</option>
-              </select>
-            </div>
-            <div class="frow">
               <label>每题答题时间（秒）</label>
               <input v-model.number="cfgForm.per_question_time" class="input" type="number" min="5" max="600" :disabled="quiz.status !== 'WAITING'" />
             </div>
@@ -88,20 +81,6 @@
               <label>抢答后答题时间（秒）</label>
               <input v-model.number="cfgForm.rush_answer_time" class="input" type="number" min="5" max="600" :disabled="quiz.status !== 'WAITING'" />
             </div>
-        <div class="frow"><label>必答计分（0=用题目分值）</label>
-          <span style="display:flex;gap:6px">
-            <input v-model.number="cfgForm.req_score_single" class="input" type="number" min="0" placeholder="单选" style="width:70px":disabled="quiz.status !== 'WAITING'" />
-            <input v-model.number="cfgForm.req_score_multiple" class="input" type="number" min="0" placeholder="多选" style="width:70px":disabled="quiz.status !== 'WAITING'" />
-            <input v-model.number="cfgForm.req_score_judge" class="input" type="number" min="0" placeholder="判断" style="width:70px":disabled="quiz.status !== 'WAITING'" />
-          </span>
-        </div>
-        <div class="frow"><label>抢答计分（0=用题目分值）</label>
-          <span style="display:flex;gap:6px">
-            <input v-model.number="cfgForm.rush_score_single" class="input" type="number" min="0" placeholder="单选" style="width:70px":disabled="quiz.status !== 'WAITING'" />
-            <input v-model.number="cfgForm.rush_score_multiple" class="input" type="number" min="0" placeholder="多选" style="width:70px":disabled="quiz.status !== 'WAITING'" />
-            <input v-model.number="cfgForm.rush_score_judge" class="input" type="number" min="0" placeholder="判断" style="width:70px":disabled="quiz.status !== 'WAITING'" />
-          </span>
-        </div>
             <div class="frow">
               <label>答题说明</label>
               <input v-model="cfgForm.description" class="input" :disabled="quiz.status !== 'WAITING'" />
@@ -173,7 +152,7 @@
             <div class="frow"><label>本题限时（秒，0=用全局）</label><input v-model.number="ed.time_limit" class="input" type="number" min="0" max="600" /></div>
           </div>
           <div class="frow" style="flex-direction: row">
-            <label style="margin: 0"><input v-model="ed.required" type="checkbox" /> 必答题（不可跳过）</label>
+            <label style="margin: 0"><input v-model="ed.required" type="checkbox" /> 必答题（不勾选＝此题抢答）</label>
           </div>
           <div class="frow">
             <label>解析（公布答案时展示）</label>
@@ -393,6 +372,10 @@ async function copyLink() {
 }
 .q-opt.right {
   color: var(--success);
+}
+.tag.rush {
+  color: #ff7875;
+  border-color: #ff7875;
 }
 .frow {
   display: flex;
