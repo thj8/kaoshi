@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"kaoshi/internal/engine"
 	"strconv"
 	"net/http"
 	"time"
@@ -19,12 +20,13 @@ var loginLimiter = middleware.NewIPLimiter(5, time.Minute)
 
 type Handler struct {
 	DB        *gorm.DB
+	Engine    *engine.Engine
 	AdminUser string
 	AdminPass string
 }
 
-func New(db *gorm.DB, user, pass string) *Handler {
-	return &Handler{DB: db, AdminUser: user, AdminPass: pass}
+func New(db *gorm.DB, eng *engine.Engine, user, pass string) *Handler {
+	return &Handler{DB: db, Engine: eng, AdminUser: user, AdminPass: pass}
 }
 
 func ok(c *gin.Context, data any) {
@@ -202,11 +204,14 @@ func (h *Handler) DeleteQuiz(c *gin.Context) {
 		fail(c, 404, "答题不存在")
 		return
 	}
-	if quiz.Status != model.QuizStatusWaiting {
-		fail(c, 400, "答题已开始，不允许删除")
+	if quiz.Status != model.QuizStatusWaiting && quiz.Status != model.QuizStatusFinished {
+		fail(c, 400, "仅未开始或已结束的答题可删除")
 		return
 	}
-	h.DB.Select("Questions").Delete(&quiz) // 级联删题目
+	if err := h.Engine.DeleteQuiz(quiz.ID); err != nil {
+		fail(c, 500, "删除失败")
+		return
+	}
 	ok(c, nil)
 }
 

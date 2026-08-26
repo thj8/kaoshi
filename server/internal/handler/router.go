@@ -18,15 +18,15 @@ import (
 
 // Register 组装全部路由
 func Register(r *gin.Engine, cfg *config.Config, db *gorm.DB, rdb *redis.Client) *engine.Engine {
-	adminH := admin.New(db, cfg.AdminUser, cfg.AdminPass)
+	hub := ws.NewHub()
+	eng := engine.New(db, rdb, hub)
+	adminH := admin.New(db, eng, cfg.AdminUser, cfg.AdminPass)
 
 	r.GET("/api/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "time": time.Now().Unix()})
 	})
 
 	// WebSocket
-	hub := ws.NewHub()
-	eng := engine.New(db, rdb, hub)
 	wsSrv := &ws.Server{Hub: hub}
 	wsSrv.Snapshot = eng.Snapshot
 	r.GET("/ws", wsSrv.HandleWS)

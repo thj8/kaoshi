@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -121,6 +122,7 @@ func (e *Engine) rushStartLocked(rt *Runtime) error {
 		e.RushEnd(quizID)
 	})
 	rt.startRushTickerLocked(qID)
+	log.Printf("[rush] quiz=%d 第%d题 开启抢答（名额%d 窗口%ds）", quizID, rt.curIndex+1, rt.quiz.RushWinnerCount, rt.quiz.RushTime)
 	return nil
 }
 
@@ -226,7 +228,10 @@ func (e *Engine) RushSubmit(quizID, questionID, userID int64) (*ws.RushResultDat
 	case -1:
 		return nil, ErrAlreadyRushed
 	case -2, -3:
-		// 名额已满 → 失败（fail set 已记录，重连恢复状态用）
+		// 名额已满 → 失败（fail set 已记录，重连恢复状态用）；留痕日志
+		var uf model.User
+		e.DB.First(&uf, userID)
+		log.Printf("[rush] quiz=%d 第%d题 %s 未抢到（名额已满）", quizID, rt.curIndex+1, uf.Nickname)
 		e.Hub.SendToUser(quizID, userID, ws.EventRushFailed, &ws.RushResultData{
 			QuestionID: questionID, Rank: 0, Reason: "full",
 		})
@@ -252,6 +257,8 @@ func (e *Engine) RushSubmit(quizID, questionID, userID int64) (*ws.RushResultDat
 
 	var u model.User
 	e.DB.First(&u, userID)
+	log.Printf("[rush] quiz=%d 第%d题 %s 抢到 rank=%d/%d",
+		quizID, rt.curIndex+1, u.Nickname, rank, rt.quiz.RushWinnerCount)
 
 	result := &ws.RushResultData{
 		QuestionID: questionID, Rank: rank, Nickname: u.Nickname,

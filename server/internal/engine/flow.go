@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"log"
 	"sort"
 	"time"
 
@@ -46,6 +47,7 @@ func (e *Engine) Start(quizID int64) error {
 		"status": model.QuizStatusAnswering, "started_at": now,
 	})
 	e.Hub.Broadcast(quizID, ws.EventActivityStart, nil)
+	log.Printf("[ctrl] quiz=%d 开始比赛（共%d题）", quizID, len(rt.questions))
 	return e.publishLocked(rt, 0)
 }
 
@@ -125,6 +127,7 @@ func (e *Engine) Next(quizID int64) error {
 		rt.mu.Lock()
 		return err
 	}
+	log.Printf("[ctrl] quiz=%d 下一题 → 第%d题", quizID, next+1)
 	return e.publishLocked(rt, next)
 }
 
@@ -146,6 +149,7 @@ func (e *Engine) Previous(quizID int64) error {
 	if prev < 0 {
 		return errors.New("已经是第一题")
 	}
+	log.Printf("[ctrl] quiz=%d 上一题 → 第%d题", quizID, prev+1)
 	return e.publishLocked(rt, prev)
 }
 
@@ -281,6 +285,7 @@ func (e *Engine) Reset(quizID int64) error {
 	e.DB.Model(&model.Quiz{}).Where("id = ?", quizID).Updates(map[string]any{
 		"status": model.QuizStatusWaiting, "started_at": nil, "ended_at": nil,
 	})
+	log.Printf("[ctrl] quiz=%d 重置比赛（清空答题/抢答记录，成绩归零）", quizID)
 
 	// 清 Redis 抢答判重键
 	var qids []int64
@@ -533,6 +538,12 @@ func (e *Engine) SubmitAnswer(quizID, questionID, userID int64, answer string, d
 	var p model.Participant
 	e.DB.Where("quiz_id = ? AND user_id = ?", quizID, userID).First(&p)
 
+	// 答题提交日志（服务端留痕，页面上不展示）
+	var u model.User
+	e.DB.First(&u, userID)
+	log.Printf("[answer] quiz=%d 第%d题 %s 答「%s」题目「%s」正确答案=%s 得分=%d",
+		quizID, rt.curIndex+1, u.Nickname, userAns, clip(q.Content, 15), q.Answer, score)
+
 	result := &ws.AnswerResultData{
 		QuestionID: questionID,
 		Answer:     userAns,
@@ -591,6 +602,38 @@ func normalizeAnswer(qType, answer string, opts []model.QuestionOption) (string,
 		return string(out), true
 	}
 	return "", false
+}
+
+// DeleteQuiz 删除整场答题（仅 WAITING/FINISHED 可删，handler 校验状态）
+func (e *Engine) DeleteQuiz(quizID int64) error {
+	if rt, err := e.Get(quizID); err == nil {
+		rt.mu.Lock()
+		rt.stopTimer()
+		rt.stopTicker()
+		rt.stopRushTimer()
+		rt.stopRushTicker()
+		rt.mu.Unlock()
+	}
+	e.mu.Lock()
+	delete(e.runtimes, quizID)
+	e.mu.Unlock()
+
+	var qids []int64
+	e.DB.Model(&model.Question{}).Where("quiz_id = ?", quizID).Pluck("id", &qids)
+	ctx := context.Background()
+	for _, qid := range qids {
+		k1, k2 := rushKeys(quizID, qid)
+		e.RDB.Del(ctx, k1, k2)
+	}
+
+	return e.DB.Transaction(func(tx *gorm.DB) error {
+		for _, m := range []any{&model.Answer{}, &model.RushRecord{}, &model.Participant{}, &model.QuizInvitee{}} {
+			if err := tx.Where("quiz_id = ?", quizID).Delete(m).Error; err != nil {
+				return err
+			}
+		}
+		return tx.Select("Questions").Delete(&model.Quiz{ID: quizID}).Error // 级联删题目(+选项)
+	})
 }
 
 // ---------- 统计与排行 ----------

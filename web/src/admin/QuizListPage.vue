@@ -39,7 +39,7 @@
             编辑
           </button>
           <button
-            v-if="q.status === 'WAITING'"
+            v-if="q.status === 'WAITING' || q.status === 'FINISHED'"
             class="btn btn-danger"
             style="padding: 9px 14px"
             @click="del(q)"

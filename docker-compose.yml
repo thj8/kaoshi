@@ -43,6 +43,9 @@ services:
       KAOSHI_JWT_SECRET: ${JWT_SECRET}
       KAOSHI_ADMIN_USER: ${ADMIN_USER}
       KAOSHI_ADMIN_PASS: ${ADMIN_PASS}
+      KAOSHI_LOG_FILE: /data/logs/server.log
+    volumes:
+      - ./server-logs:/data/logs
     ports:
       - "18080:8080"
     depends_on:
