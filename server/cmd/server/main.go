@@ -2,10 +2,12 @@ package main
 
 import (
 	"context"
+	"io"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -21,6 +23,20 @@ import (
 func main() {
 	cfg := config.Load()
 	auth.Init(cfg.JWTSecret, cfg.TokenTTL)
+
+	// 日志同时落盘（stdout 保留，docker logs 仍可用）
+	if cfg.LogFile != "" {
+		if err := os.MkdirAll(filepath.Dir(cfg.LogFile), 0o755); err != nil {
+			log.Fatalf("init log dir failed: %v", err)
+		}
+		// ponytail: 追加单文件无轮转，量大了再上 lumberjack/logrotate
+		f, err := os.OpenFile(cfg.LogFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+		if err != nil {
+			log.Fatalf("open log file failed: %v", err)
+		}
+		defer f.Close()
+		log.SetOutput(io.MultiWriter(os.Stdout, f))
+	}
 
 	db, err := store.NewDB(cfg.MySQLDSN)
 	if err != nil {

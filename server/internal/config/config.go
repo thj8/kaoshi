@@ -16,6 +16,7 @@ type Config struct {
 	AdminPass   string
 	TokenTTL    time.Duration
 	OriginAllow string
+	LogFile     string // 日志落盘路径（空=仅 stdout）
 }
 
 func env(key, def string) string {
@@ -37,6 +38,7 @@ func Load() *Config {
 		AdminPass:   env("KAOSHI_ADMIN_PASS", ""),
 		TokenTTL:    24 * time.Hour,
 		OriginAllow: env("KAOSHI_ORIGIN_ALLOW", "*"),
+		LogFile:     env("KAOSHI_LOG_FILE", ""),
 	}
 	if cfg.JWTSecret == "" {
 		panic("KAOSHI_JWT_SECRET 未设置：拒绝用空 secret 启动（可用 openssl rand -hex 32 生成）")

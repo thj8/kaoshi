@@ -24,3 +24,4 @@ dist/
 # Logs
 *.log
 web/src/assets/
+server-logs/
