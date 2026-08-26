@@ -32,6 +32,8 @@ node scripts/hardening_e2e.mjs   # 抢答并发/越权/防重复/重连（7 项�
 | C6 | 非法选项被拒 | security_e2e | ✅ |
 | C7 | 结束(FINISHED)后提交被拒 | security_e2e | ✅ |
 | C8 | 倒计时超时（含 1.5s 宽限）后提交被拒 | security_e2e | ✅ |
+| C9 | 失效 token（用户已删）提交答案被拒 | security_e2e | ✅ |
+| C10 | 失效 token（用户已删）抢答被拒 | security_e2e | ✅ |
 | H1 | 越权：跨 quiz token 提交被拒 | hardening_e2e | ✅ |
 | H2 | 越权：未参加者提交被拒 | hardening_e2e | ✅ |
 | H3 | 防重复：二次提交被拒且不重复加分 | hardening_e2e | ✅ |
@@ -148,6 +150,13 @@ node scripts/hardening_e2e.mjs   # 抢答并发/越权/防重复/重连（7 项�
 - **T4 未答题者 0 分在榜**：只 join 未作答的用户以 0 分出现在排行榜。
 - **T5 成绩单总分=累计分**：`GET /api/quiz/:id/result` 返回的 rank=1、
   答题 2 题、正确率 100%。
+
+- **C9/C10 失效身份提交被拒**：用户被管理端删除（级联 participants/answers）后，
+  其旧答题 token 提交答案/抢答必须返回非 0（401 账号已失效 / 400 参赛信息不存在）。
+  （曾发现严重 bug：SubmitAnswer 不校验参赛者存在，清库/重置后的旧 token 提交
+  返回 code=0、score 正常、total_score=0，产生孤儿答案且总分永远为 0；
+  已修复——UserAuth 中间件校验用户仍存在 + SubmitAnswer/RushSubmit 校验
+  participant 行存在。）
 
 ## Git 提交约束
 

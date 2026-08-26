@@ -38,7 +38,7 @@ func Register(r *gin.Engine, cfg *config.Config, db *gorm.DB, rdb *redis.Client)
 	r.GET("/api/quiz/:id/brief", apiH.QuizBrief)
 
 	// 用户端（需登录）
-	user := r.Group("/api", middleware.UserAuth())
+	user := r.Group("/api", middleware.UserAuth(db))
 	{
 		user.GET("/auth/me", apiH.Me)
 		user.GET("/quizzes", apiH.QuizList)

@@ -140,6 +140,7 @@ const canRush = computed(
     !!quiz.value?.rush_enabled &&
     status.value === 'ANSWERING' &&
     curIndex.value >= 0 &&
+    !curQuestion.value?.required &&
     (rushWinners.value?.length ?? 0) === 0
 )
 const statusText = computed(() => ({ WAITING: '未开始', RUNNING: '进行中', PAUSED: '已暂停', RUSHING: '抢答中', ANSWERING: '答题中', REVEALING: '公布答案', FINISHED: '已结束' } as Record<string, string>)[status.value] || status.value)

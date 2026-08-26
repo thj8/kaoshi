@@ -76,6 +76,11 @@ func (e *Engine) rushStartLocked(rt *Runtime) error {
 	}
 	q := rt.questions[rt.curIndex]
 
+	// 必答题（非抢答模式）不允许抢答：抢答与否只由题目设置决定
+	if q.Required && rt.quiz.Mode != model.ModeRush {
+		return errors.New("必答题不能抢答")
+	}
+
 	// 本题已完成过抢答（有成功记录）则不允许重复抢
 	var cnt int64
 	e.DB.Model(&model.RushRecord{}).
@@ -187,6 +192,11 @@ func (e *Engine) RushSubmit(quizID, questionID, userID int64) (*ws.RushResultDat
 	}
 	if rt.curIndex < 0 || rt.curIndex >= len(rt.questions) || rt.questions[rt.curIndex].ID != questionID {
 		return nil, errors.New("当前题目不匹配")
+	}
+	var pc int64
+	e.DB.Model(&model.Participant{}).Where("quiz_id = ? AND user_id = ?", quizID, userID).Count(&pc)
+	if pc == 0 {
+		return nil, errors.New("参赛信息不存在，请重新加入本场答题")
 	}
 	// 窗口校验（宽限 500ms 网络延迟），以服务器时间为准
 	if rt.rushDeadline > 0 && nowMilli() > rt.rushDeadline+500 {
