@@ -65,6 +65,12 @@ func (e *Engine) RushStart(quizID int64) error {
 	if rt.quiz.Status != model.QuizStatusAnswering {
 		return errors.New("请先发布题目再开始抢答")
 	}
+	return e.rushStartLocked(rt)
+}
+
+// rushStartLocked 进入抢答窗口（调用方持有 rt.mu）；发布非必答题时自动调用
+func (e *Engine) rushStartLocked(rt *Runtime) error {
+	quizID := rt.quiz.ID
 	if rt.curIndex < 0 || rt.curIndex >= len(rt.questions) {
 		return errors.New("没有当前题目")
 	}

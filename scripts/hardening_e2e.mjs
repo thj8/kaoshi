@@ -97,6 +97,35 @@ function connect(token, onMsg) {
   check('实时统计：已答不含未答占位(2/3)', qSt && qSt.answered === 2, `answered=${qSt?.answered}`)
   check('实时统计：正确/错误不含未答(1/1)', qSt && qSt.correct === 1 && qSt.wrong === 1, `correct=${qSt?.correct} wrong=${qSt?.wrong}`)
   check('实时统计：正确率分母为真实作答(50%)', Math.round(qSt.correct_rate) === 50, `rate=${qSt?.correct_rate}`)
+  const rkS = stS.ranking || []
+  const r1S = rkS.find(r => r.correct === 1), r2S = rkS.find(r => r.wrong === 1 && r.correct === 0)
+  check('S3 答对按题目分值(+10)、答错 0 分', r1S?.score === 10 && r2S?.score === 0, `对=${r1S?.score} 错=${r2S?.score}`)
+
+  // ---------- 2c. 成绩总分与排行榜（T 系列） ----------
+  const quizT = (await j('POST', '/api/admin/quiz', { title: 's8-total', mode: 'normal', per_question_time: 60, show_answer: true, show_ranking: true }, at)).data
+  await j('POST', `/api/admin/quiz/${quizT.id}/questions`, { type: 'single', content: 'T1?', answer: 'A', score: 10, required: true, sort: 1, options: [{ label: 'A', content: '1' }, { label: 'B', content: '2' }] }, at)
+  await j('POST', `/api/admin/quiz/${quizT.id}/questions`, { type: 'single', content: 'T2?', answer: 'B', score: 10, required: true, sort: 2, options: [{ label: 'A', content: '1' }, { label: 'B', content: '2' }] }, at)
+  const ut1 = await mkU(`s8t1${sfx}`), ut2 = await mkU(`s8t2${sfx}`), ut3 = await mkU(`s8t3${sfx}`)
+  const jt1 = (await j('POST', '/api/join', { quiz_id: quizT.id }, ut1.token)).data
+  const jt2 = (await j('POST', '/api/join', { quiz_id: quizT.id }, ut2.token)).data
+  await j('POST', '/api/join', { quiz_id: quizT.id }, ut3.token) // 只加入不答题
+  const qsT = (await j('GET', `/api/admin/quiz/${quizT.id}/questions`, null, at)).data
+  await j('POST', `/api/admin/quiz/${quizT.id}/start`, {}, at); await sleep(400)
+  await j('POST', `/api/question/${qsT[0].id}/answer`, { answer: 'A', duration: 100 }, jt1.token) // u1 对
+  await j('POST', `/api/question/${qsT[0].id}/answer`, { answer: 'B', duration: 100 }, jt2.token) // u2 错
+  await j('POST', `/api/admin/quiz/${quizT.id}/next`, {}, at); await sleep(400)
+  const t1q2 = await j('POST', `/api/question/${qsT[1].id}/answer`, { answer: 'B', duration: 100 }, jt1.token)
+  check('T1 即时 total_score 跨题累计', t1q2.data?.score === 10 && t1q2.data?.total_score === 20, `score=${t1q2.data?.score} total=${t1q2.data?.total_score}`)
+  await j('POST', `/api/question/${qsT[1].id}/answer`, { answer: 'B', duration: 100 }, jt2.token) // u2 对
+  await sleep(300)
+  const stT = (await j('GET', `/api/admin/quiz/${quizT.id}/statistics`, null, at)).data
+  const rk = stT.ranking || []
+  const rk1 = rk[0], rk2 = rk[1]
+  check('T2 排行榜按分数降序', rk.length >= 2 && rk1.score > rk2.score && rk1.rank === 1 && rk2.rank === 2, `r1=${rk1?.rank}/${rk1?.score} r2=${rk2?.rank}/${rk2?.score}`)
+  check('T3 总分=各题得分之和(20/10/0)', rk1.score === 20 && rk2.score === 10 && rk.every(r => [20, 10, 0].includes(r.score)), JSON.stringify(rk.map(r => r.score)))
+  check('T4 未答题者 0 分在榜', rk.some(r => r.score === 0), '')
+  const resT = (await j('GET', `/api/quiz/${quizT.id}/result`, null, jt1.token)).data
+  check('T5 成绩单总分=累计分', resT.total_score === 20 || resT.score === 20, JSON.stringify(resT).slice(0, 120))
 
   // ---------- 3. 断线重连恢复 ----------
   const quizC = (await j('POST', '/api/admin/quiz', { title: 's8-reconnect', mode: 'normal', per_question_time: 120 }, at)).data

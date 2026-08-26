@@ -87,6 +87,7 @@ function connect(token, onMsg) {
   // ---------- 1b. 普通模式混合题：抢答题在抢答前不可直接作答（防绕过抢答） ----------
   const quizX = (await mkQ('sec-mixed', 'normal', { rush_enabled: true, rush_time: 15, rush_answer_time: 20 })).data
   const qX = (await mkQs(quizX.id, { type: 'single', content: '混合抢答题?', answer: 'B', score: 10, required: false, time_limit: 20, options: opts(['A', 'B']) })).data
+  const qX2 = (await mkQs(quizX.id, { type: 'single', content: '混合抢答题2?', answer: 'A', score: 10, required: false, time_limit: 20, options: opts(['A', 'B']) })).data
   const jX_a = (await j('POST', '/api/join', { quiz_id: quizX.id }, alice.token)).data
   await j('POST', `/api/admin/quiz/${quizX.id}/start`, {}, at)
   await sleep(300)
@@ -102,6 +103,14 @@ function connect(token, onMsg) {
   await sleep(300)
   const xAfterRush = await j('POST', `/api/question/${qX.id}/answer`, { answer: 'B', duration: 100 }, jX_a.token)
   check('X4 抢到后可提交', xAfterRush.code === 0, `code=${xAfterRush.code} msg=${xAfterRush.msg}`)
+  check('S1 抢答答对=题目分值无奖励', xAfterRush.data?.score === 10 && xAfterRush.data?.total_score === 10, `score=${xAfterRush.data?.score} total=${xAfterRush.data?.total_score}`)
+  // S2：第二道抢答题，抢到后答错 → 0 分不倒扣
+  await j('POST', `/api/admin/quiz/${quizX.id}/next`, {}, at); await sleep(300)
+  await j('POST', `/api/admin/quiz/${quizX.id}/rush/start`, {}, at); await sleep(300)
+  await j('POST', `/api/question/${qX2.id}/rush`, {}, jX_a.token)
+  await j('POST', `/api/admin/quiz/${quizX.id}/rush/end`, {}, at); await sleep(300)
+  const xWrong = await j('POST', `/api/question/${qX2.id}/answer`, { answer: 'B', duration: 100 }, jX_a.token)
+  check('S2 抢答答错 0 分不倒扣', xWrong.code === 0 && xWrong.data?.score === 0 && xWrong.data?.total_score === 10, `score=${xWrong.data?.score} total=${xWrong.data?.total_score}`)
 
   // ---------- 2. 抢答权限（问题1） ----------
   await j('POST', `/api/admin/quiz/${quizR.id}/start`, {}, at)
@@ -111,7 +120,7 @@ function connect(token, onMsg) {
   await j('POST', `/api/admin/quiz/${quizR.id}/rush/start`, {}, at)
   await sleep(300)
   const r1 = await j('POST', `/api/question/${qR.id}/rush`, {}, jR_a.token) // 仅 Alice 抢
-  check('A2 Alice 抢答成功 rank=1', r1.code === 0 && r1.data?.rank === 1, `code=${r1.code} rank=${r1.data?.rank}`)
+  check('A2 Alice 抢答成功 rank=1 且无奖励分', r1.code === 0 && r1.data?.rank === 1 && (r1.data?.bonus ?? 0) === 0 && (r1.data?.score ?? 0) === 0, `code=${r1.code} rank=${r1.data?.rank} bonus=${r1.data?.bonus} score=${r1.data?.score}`)
   await j('POST', `/api/admin/quiz/${quizR.id}/rush/end`, {}, at)
   await sleep(300)
   const bobTry = await j('POST', `/api/question/${qR.id}/answer`, { answer: 'B', duration: 100 }, jR_b.token)
@@ -120,6 +129,7 @@ function connect(token, onMsg) {
   check('A4 抢答窗口关闭后 Bob 再抢被拒', bobRushAgain.code !== 0, `code=${bobRushAgain.code}`)
   const aliceAns = await j('POST', `/api/question/${qR.id}/answer`, { answer: 'B', duration: 300 }, jR_a.token)
   check('A5 抢到的 Alice 可提交', aliceAns.code === 0, `code=${aliceAns.code}`)
+  check('S4 抢到的答对=题目分值无奖励(quizR)', aliceAns.data?.score === 10 && aliceAns.data?.total_score === 10, `score=${aliceAns.data?.score} total=${aliceAns.data?.total_score}`)
   const curR = JSON.stringify(await j('GET', `/api/quiz/${quizR.id}/current-question`, null, jR_a.token))
   check('B1 抢答题 current-question 无答案', !leak(curR), '')
 

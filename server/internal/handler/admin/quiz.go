@@ -107,7 +107,7 @@ func (h *Handler) CreateQuiz(c *gin.Context) {
 		Status:          model.QuizStatusWaiting,
 		TotalTime:       req.TotalTime,
 		PerQuestionTime: orDefault(req.PerQuestionTime, 30),
-		RushEnabled:     boolOr(req.RushEnabled, req.Mode == model.ModeRush),
+		RushEnabled:     boolOr(req.RushEnabled, true), // 抢答与否由题目 required 决定，比赛级默认开启
 		ShowAnswer:      boolOr(req.ShowAnswer, true),
 		ShowAnalysis:    boolOr(req.ShowAnalysis, true),
 		ShowRanking:     boolOr(req.ShowRanking, true),
@@ -153,7 +153,7 @@ func (h *Handler) UpdateQuiz(c *gin.Context) {
 	quiz.Mode = req.Mode
 	quiz.TotalTime = req.TotalTime
 	quiz.PerQuestionTime = orDefault(req.PerQuestionTime, quiz.PerQuestionTime)
-	quiz.RushEnabled = boolOr(req.RushEnabled, quiz.RushEnabled)
+	quiz.RushEnabled = true // 抢答由题目 required 决定，不再提供比赛级开关
 	quiz.ShowAnswer = boolOr(req.ShowAnswer, quiz.ShowAnswer)
 	quiz.ShowAnalysis = boolOr(req.ShowAnalysis, quiz.ShowAnalysis)
 	quiz.ShowRanking = boolOr(req.ShowRanking, quiz.ShowRanking)

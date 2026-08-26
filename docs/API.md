@@ -75,7 +75,7 @@
 
 ### POST /api/question/:id/rush
 抢答（仅 RUSHING 状态；Redis Lua 原子判序，rank=1..N 为名额内）。
-`data: {"rank":1,"bonus_score":5,"server_time":<ns>}`；超名额/窗口关闭返回 400。
+`data: {"rank":1,"bonus":0,"score":<当前总分>}`；抢答不再产生奖励分（bonus 恒 0），得分一律走判分口径；超名额/窗口关闭返回 400。
 
 ### GET /api/quiz/:id/ranking
 实时排行榜。`data: {"items":[{"rank":1,"user_id":1,"nickname":"Alice","score":10,"correct":1}]}`
@@ -114,7 +114,7 @@
 { "title": "常识知识竞赛", "mode": "normal",       // normal | rush
   "per_question_time": 30,                          // 每题默认倒计时（秒）
   "rush_time": 10, "rush_answer_time": 15,          // 抢答窗口 / 抢到后答题时限（秒）
-  "rush_bonus_score": 5,
+  "rush_bonus_score": 0, // 已下线，忽略（答错不倒扣同理）
   "show_answer": true, "show_analysis": true, "show_ranking": true }
 ```
 
