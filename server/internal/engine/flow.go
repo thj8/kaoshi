@@ -437,9 +437,10 @@ func (e *Engine) SubmitAnswer(quizID, questionID, userID int64, answer string, d
 	}
 	q := rt.questions[rt.curIndex]
 
-	// 抢答题：仅抢答成功者可作答；纯抢答模式（mode=rush）在开窗前也不允许直接作答，防止绕过抢答
-	isRush := e.isRushQuestion(quizID, questionID)
-	if isRush || rt.quiz.Mode == model.ModeRush {
+	// 抢答题资格：按题目属性判定（required=false 即抢答题），而非"是否已有人抢过"——
+	// 否则第一人抢答前任何人可直接作答绕过抢答；mode=rush 与已发生过抢答的题同样必须持有 RushRecord
+	isRush := !q.Required || rt.quiz.Mode == model.ModeRush || e.isRushQuestion(quizID, questionID)
+	if isRush {
 		var cnt int64
 		e.DB.Model(&model.RushRecord{}).
 			Where("quiz_id = ? AND question_id = ? AND user_id = ?", quizID, questionID, userID).Count(&cnt)
@@ -580,8 +581,11 @@ type QuestionStats struct {
 func (e *Engine) questionStats(quizID, questionID int64) (*ws.RevealStats, map[string]int) {
 	var participants, answered, correct int64
 	e.DB.Model(&model.Participant{}).Where("quiz_id = ?", quizID).Count(&participants)
-	e.DB.Model(&model.Answer{}).Where("quiz_id = ? AND question_id = ?", quizID, questionID).Count(&answered)
-	e.DB.Model(&model.Answer{}).Where("quiz_id = ? AND question_id = ? AND is_correct = ?", quizID, questionID, true).Count(&correct)
+	// 统计口径：排除未答占位行（answer="-"，收卷时由 markUnanswered 补写），否则已答虚高、未答算负数
+	e.DB.Model(&model.Answer{}).
+		Where("quiz_id = ? AND question_id = ? AND answer != ?", quizID, questionID, AnswerUnanswered).Count(&answered)
+	e.DB.Model(&model.Answer{}).
+		Where("quiz_id = ? AND question_id = ? AND is_correct = ? AND answer != ?", quizID, questionID, true, AnswerUnanswered).Count(&correct)
 
 	dist := map[string]int{}
 	type row struct {

@@ -75,8 +75,8 @@ func (e *Engine) Statistics(quizID int64) *OverallStats {
 		s.Finished = finished
 		s.MinScore = minScore
 		s.AvgScore = float64(totalScore) / float64(len(participants))
-		var totalAnswered int64
-		e.DB.Model(&model.Answer{}).Where("quiz_id = ?", quizID).Count(&totalAnswered)
+		var totalAnswered int64 // 排除未答占位行（answer="-"），正确率分母只算真实作答
+		e.DB.Model(&model.Answer{}).Where("quiz_id = ? AND answer != ?", quizID, AnswerUnanswered).Count(&totalAnswered)
 		if totalAnswered > 0 {
 			s.AvgCorrect = float64(correct) / float64(totalAnswered) * 100
 		}
@@ -88,7 +88,8 @@ func (e *Engine) Statistics(quizID int64) *OverallStats {
 			Index: i + 1, QuestionID: q.ID, Type: q.Type, Content: q.Content,
 		}
 		var answered, correct int64
-		e.DB.Model(&model.Answer{}).Where("quiz_id = ? AND question_id = ?", quizID, q.ID).Count(&answered)
+		e.DB.Model(&model.Answer{}).
+			Where("quiz_id = ? AND question_id = ? AND answer != ?", quizID, q.ID, AnswerUnanswered).Count(&answered)
 		e.DB.Model(&model.Answer{}).Where("quiz_id = ? AND question_id = ? AND is_correct = ?", quizID, q.ID, true).Count(&correct)
 		qs.Answered = int(answered)
 		qs.Correct = int(correct)
