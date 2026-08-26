@@ -87,12 +87,13 @@ const L = 'ABCDEFGH'.split('')
 // ---------- 4. 建赛 ----------
 const quiz = (await j('POST', '/api/admin/quiz', {
   title: '计分规则验证赛', mode: 'normal',
-  description: '必答题 40 分（单选 2 分/题、多选 4 分/题）；抢答题 60 分（单选 3 分/题、多选 6 分/题）；答错一律 0 分不倒扣',
+  description: '必答题 40 分（单选 2 分/题、多选 4 分/题，答错 0 分）；抢答题 60 分（单选 3 分/题、多选 6 分/题，答错扣对应分值：单选-3、多选-6）',
   per_question_time: 30, rush_enabled: true, rush_time: 10, rush_answer_time: 20,
   rush_winner_count: 1,
   // 按题型计分（判分时覆盖题目分值）
   req_score_single: 2, req_score_multiple: 4, req_score_judge: 3,
   rush_score_single: 3, rush_score_multiple: 6, rush_score_judge: 3,
+  rush_deduct_single: 3, rush_deduct_multiple: 6, rush_deduct_judge: 3,
   rush_deduct_single: 3, rush_deduct_multiple: 6, rush_deduct_judge: 3,
   show_answer: true, show_analysis: true, show_ranking: true,
 }, at)).data
@@ -106,7 +107,7 @@ const mk = async (type, pool, idx, score, required, timeLimit) => {
   const r = await j('POST', `/api/admin/quiz/${quiz.id}/questions`, {
     type, content,
     answer: correctArr.map(i => L[i]).sort().join(''),
-    analysis: '答对得本题分值，答错 0 分不倒扣。',
+    analysis: '答对得本题分值；抢答题答错扣对应分值。',
     score, required, time_limit: timeLimit, sort,
     options: options.map((c, i) => ({ label: L[i], content: c })),
   }, at)
@@ -122,7 +123,7 @@ for (let i = 5; i < 10; i++) await mk('multiple', MULTI, i, 6, false, 40)
 
 console.log(`✅ 已生成「计分规则验证赛」#${quiz.id}（30 题，共 100 分）`)
 console.log('   必答题 15 题 40 分：10 单选×2 + 5 多选×4（答错 0 分）')
-console.log('   抢答题 15 题 60 分：10 单选×3 + 5 多选×6（答错 0 分，不倒扣）')
+console.log('   抢答题 15 题 60 分：10 单选×3 + 5 多选×6（答错扣对应分值：单选-3、多选-6）')
 console.log('   选手（用户名=姓名拼音，密码=用户名+12345）：')
 console.log('     zhangwei/张伟  liuyang/刘洋  chenjing/陈静  wangfang/王芳  zhaolei/赵磊')
-console.log(`   流程：控制台 ▶开始 → 必答题直接作答；到抢答题时点 ⚡开始抢答 → 抢到者作答（答错 0 分）`)
+console.log(`   流程：控制台 ▶开始 → 必答题直接作答；到抢答题时点 ⚡开始抢答 → 抢到者作答（答错倒扣）`)

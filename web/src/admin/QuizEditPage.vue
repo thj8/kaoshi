@@ -81,6 +81,27 @@
               <label>抢答后答题时间（秒）</label>
               <input v-model.number="cfgForm.rush_answer_time" class="input" type="number" min="5" max="600" :disabled="quiz.status !== 'WAITING'" />
             </div>
+            <div class="frow"><label>必答计分（0=用题目分值）</label>
+              <span style="display:flex;gap:6px">
+                <input v-model.number="cfgForm.req_score_single" class="input" type="number" min="0" placeholder="单选" style="width:70px" :disabled="quiz.status !== 'WAITING'" />
+                <input v-model.number="cfgForm.req_score_multiple" class="input" type="number" min="0" placeholder="多选" style="width:70px" :disabled="quiz.status !== 'WAITING'" />
+                <input v-model.number="cfgForm.req_score_judge" class="input" type="number" min="0" placeholder="判断" style="width:70px" :disabled="quiz.status !== 'WAITING'" />
+              </span>
+            </div>
+            <div class="frow"><label>抢答计分（0=用题目分值）</label>
+              <span style="display:flex;gap:6px">
+                <input v-model.number="cfgForm.rush_score_single" class="input" type="number" min="0" placeholder="单选" style="width:70px" :disabled="quiz.status !== 'WAITING'" />
+                <input v-model.number="cfgForm.rush_score_multiple" class="input" type="number" min="0" placeholder="多选" style="width:70px" :disabled="quiz.status !== 'WAITING'" />
+                <input v-model.number="cfgForm.rush_score_judge" class="input" type="number" min="0" placeholder="判断" style="width:70px" :disabled="quiz.status !== 'WAITING'" />
+              </span>
+            </div>
+            <div class="frow"><label>抢答答错扣分（0=不扣）</label>
+              <span style="display:flex;gap:6px">
+                <input v-model.number="cfgForm.rush_deduct_single" class="input" type="number" min="0" placeholder="单选" style="width:70px" :disabled="quiz.status !== 'WAITING'" />
+                <input v-model.number="cfgForm.rush_deduct_multiple" class="input" type="number" min="0" placeholder="多选" style="width:70px" :disabled="quiz.status !== 'WAITING'" />
+                <input v-model.number="cfgForm.rush_deduct_judge" class="input" type="number" min="0" placeholder="判断" style="width:70px" :disabled="quiz.status !== 'WAITING'" />
+              </span>
+            </div>
             <div class="frow">
               <label>答题说明</label>
               <input v-model="cfgForm.description" class="input" :disabled="quiz.status !== 'WAITING'" />

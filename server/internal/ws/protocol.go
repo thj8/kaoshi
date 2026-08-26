@@ -47,6 +47,7 @@ type SyncData struct {
 	MyRushRank  int             `json:"my_rush_rank"` // 0=未抢 -1=失败 >0=成功名次
 	RushWinners []RushWinner    `json:"rush_winners"` // 当前抢答成功者（进行中/已结束）
 	Me          *MeInfo         `json:"me"`          // 本人信息（用户连接时）
+	Distribution map[string]int `json:"distribution,omitempty"` // 已公布题的答案分布（刷新恢复）
 	ServerNow  int64           `json:"server_now"`  // 服务器当前毫秒时间
 }
 
