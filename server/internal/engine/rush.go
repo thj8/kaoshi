@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
-	"gorm.io/gorm"
 
 	"kaoshi/internal/model"
 	"kaoshi/internal/ws"
@@ -207,7 +206,7 @@ func (e *Engine) RushSubmit(quizID, questionID, userID int64) (*ws.RushResultDat
 	}
 
 	rank := int(res) + 1 // 0-based → 1-based
-	bonus := rt.quiz.RushBonusScore
+	bonus := 0 // 抢答奖励分已下线：抢答资格只决定谁能作答，得分一律走判分口径
 
 	// DB 记录（唯一索引兜底防重复计分）
 	rec := model.RushRecord{
@@ -220,9 +219,6 @@ func (e *Engine) RushSubmit(quizID, questionID, userID int64) (*ws.RushResultDat
 		return nil, ErrAlreadyRushed
 	}
 
-	// 奖励分立即入账
-	e.DB.Model(&model.Participant{}).Where("quiz_id = ? AND user_id = ?", quizID, userID).
-		Update("score", gorm.Expr("score + ?", bonus))
 	var p model.Participant
 	e.DB.Where("quiz_id = ? AND user_id = ?", quizID, userID).First(&p)
 
@@ -299,7 +295,7 @@ func (e *Engine) redisWinners(rt *Runtime, questionID int64) []ws.RushWinner {
 			continue
 		}
 		out = append(out, ws.RushWinner{
-			UserID: uid, Nickname: u.Nickname, Rank: i + 1, Bonus: rt.quiz.RushBonusScore,
+			UserID: uid, Nickname: u.Nickname, Rank: i + 1, Bonus: 0,
 		})
 	}
 	return out

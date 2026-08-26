@@ -77,26 +77,22 @@
         </div>
         <h2 class="q-content">{{ store.question.content }}</h2>
 
-        <!-- 抢答面板 -->
-        <div v-if="store.status === 'RUSHING' || rushLocked" class="rush-panel">
-          <template v-if="store.status === 'RUSHING'">
-            <button v-if="store.rushState === 'active'" class="rush-btn" @click="doRush">
-              立即抢答
-              <small>手速决定胜负</small>
-            </button>
-            <div v-else-if="store.rushState === 'won'" class="rush-state won">
-              抢答成功！<small>第 {{ store.rushRank }} 名 · 你获得本题答题资格（+{{ lastRushBonus }}分）</small>
+        <!-- 抢答状态提示（按钮固定在页底，见 rush-dock） -->
+        <div v-if="rushPhase !== 'idle'" class="rush-panel">
+          <div v-if="rushPhase === 'countdown'" class="rush-countdown" :key="rushCd">
+            <b :class="{ last: rushCd <= 1 }">{{ rushCd }}</b>
+          </div>
+          <div v-else class="rush-banner" :class="rushPhase">
+            <b>{{ rushBanner[0] }}</b>
+            <small>{{ rushBanner[1] }}</small>
+          </div>
+          <!-- 名额进度（仅抢答窗口内） -->
+          <div v-if="store.status === 'RUSHING' && rushPhase !== 'claimed'" class="rush-meter">
+            <div class="rush-quota">
+              <div class="rush-quota-bar"><div class="rush-quota-fill" :style="{ width: rushQuotaPct }"></div></div>
+              <span>已抢 {{ store.rush_winners?.length || 0 }} / {{ rushTotal }}</span>
             </div>
-            <div v-else-if="store.rushState === 'lost'" class="rush-state lost">
-              很遗憾<small>本题抢答资格已被其他用户获得</small>
-            </div>
-            <div v-else class="rush-state wait">等待抢答…<small>手速决定胜负</small></div>
-            <p class="rush-count">
-              已抢 {{ store.rush_winners?.length || 0 }} / {{ rushTotal }} · 剩余 {{ remainSec }}s
-            </p>
-          </template>
-          <div v-else-if="rushLocked" class="rush-state ended">
-            本题抢答结束<small>获答者：<template v-for="(w, i) in store.rush_winners" :key="w.user_id"><template v-if="i">、</template>{{ w.nickname }}</template></small>
+            <span class="rush-remain" :class="{ urgent: remainSec <= 3 && remainSec > 0 }">{{ remainSec }}s</span>
           </div>
         </div>
 
@@ -168,6 +164,20 @@
         <p v-if="ranking.length === 0" class="text-dim">暂无数据</p>
       </div>
     </main>
+
+    <!-- 底部固定圆形抢答按钮（页面最重要操作，不随内容滚动） -->
+    <div v-if="rushPhase !== 'idle'" class="rush-dock">
+      <button class="rush-fab" :class="rushPhase" :disabled="rushPhase !== 'ready'" @click="doRush">
+        <template v-if="rushPhase === 'countdown'"><b class="cd" :key="rushCd">{{ rushCd }}</b><small>即将开始</small></template>
+        <template v-else-if="rushPhase === 'ready'"><b>抢答</b><small>点击抢答</small></template>
+        <template v-else-if="rushPhase === 'claiming'"><b class="cd">…</b><small>提交中</small></template>
+        <template v-else-if="rushPhase === 'claimed'"><b class="big-check">✓</b><small>已抢答</small></template>
+        <template v-else-if="rushPhase === 'missed'"><b>未抢到</b></template>
+        <template v-else-if="rushPhase === 'timeout'"><b>超时</b><small>无人抢答</small></template>
+        <template v-else-if="rushPhase === 'ended'"><b>已结束</b><small>等待下一题</small></template>
+        <template v-else><b>等待</b></template>
+      </button>
+    </div>
   </div>
 </template>
 
@@ -179,6 +189,7 @@ import { Ev, type RankingItem, type RevealData, type AnswerResultData, type WSMe
 import { useQuizStore } from '../stores/quiz'
 import { userApi } from '../api/user'
 import { LS } from '../api'
+import { toast } from '../toast'
 
 const route = useRoute()
 const router = useRouter()
@@ -194,11 +205,14 @@ const submitted = ref(false)
 const revealed = ref(false)
 const timeUp = ref(false)
 const reveal = ref<RevealData | null>(null)
+// 抢答状态机：waiting/countdown/ready/claiming/claimed/missed/timeout/ended
+const rushCd = ref(0) // 3→2→1 开抢倒计时（纯展示层，服务端窗口才是真相）
+const lastRushWasRush = ref(false)
+let cdTimer: number | null = null
 const lastResult = ref<AnswerResultData | null>(null)
 const ranking = ref<RankingItem[]>([])
 const result = ref<Record<string, any> | null>(null)
 const showRanking = ref(false)
-const lastRushBonus = ref(0)
 const rushTotal = ref(1)
 
 /** 服务器时间偏移（server_now - Date.now()） */
@@ -227,6 +241,57 @@ const optionsLocked = computed(
 )
 /** 是否为抢答题（窗口进行中，或已有获答名单） */
 const isRushQ = computed(() => store.status === 'RUSHING' || (store.rush_winners?.length ?? 0) > 0)
+const rushQuotaPct = computed(() => Math.min(100, ((store.rush_winners?.length || 0) / (rushTotal.value || 1)) * 100) + '%')
+
+/** 抢答单一状态机（避免 boolean 拼接）：idle=非抢答场景 */
+type RushPhase = 'idle' | 'waiting' | 'countdown' | 'ready' | 'claiming' | 'claimed' | 'missed' | 'timeout' | 'ended'
+const rushPhase = computed<RushPhase>(() => {
+  // 终态优先且持久化：抢到/未抢到不因 rush:end 把 status 改成 ANSWERING 而丢失
+  // （服务端先广播 rush:end 再单发 rush:success，存在事件顺序竞态）
+  if (lastRushWasRush.value && !revealed.value) {
+    if (store.rushState === 'won' || store.my_rush_rank > 0) return 'claimed'
+    if (store.rushState === 'lost') return 'missed'
+  }
+  if (store.status === 'RUSHING') {
+    if (store.rushState === 'wait') return 'claiming'
+    if (rushCd.value > 0) return 'countdown'
+    if (store.rushState === 'active') return 'ready'
+    return 'waiting'
+  }
+  if (rushLocked.value) return 'ended'
+  if (
+    lastRushWasRush.value &&
+    store.status === 'ANSWERING' &&
+    !revealed.value &&
+    (store.rush_winners?.length ?? 0) === 0 &&
+    store.my_rush_rank <= 0
+  )
+    return 'timeout'
+  return 'idle'
+})
+const rushBanner = computed<string[]>(() => {
+  switch (rushPhase.value) {
+    case 'waiting': return ['等待抢答', '请准备，倒计时结束后开始抢答']
+    case 'countdown': return ['抢答即将开始', '倒计时结束后开始抢答']
+    case 'ready': return ['请点击下方按钮抢答', `剩余 ${remainSec.value}s · 名额 ${rushTotal.value} 个`]
+    case 'claiming': return ['抢答提交中…', '结果以服务端裁定为准']
+    case 'claimed': return ['✓ 抢答成功！', '请选择你的答案']
+    case 'missed': return ['很遗憾，被抢走了', '请继续参与下一题']
+    case 'timeout': return ['抢答超时', '本题无人抢答，请准备下一题']
+    case 'ended': return ['本题抢答结束', '请等待下一题']
+    default: return []
+  }
+})
+
+function startRushCountdown() {
+  if (cdTimer) { clearInterval(cdTimer); cdTimer = null }
+  if (store.my_rush_rank > 0) { rushCd.value = 0; return }
+  rushCd.value = 3
+  cdTimer = window.setInterval(() => {
+    rushCd.value--
+    if (rushCd.value <= 0 && cdTimer) { clearInterval(cdTimer); cdTimer = null }
+  }, 1000)
+}
 
 function syncRemain() {
   if (!store.deadline_at) {
@@ -261,6 +326,7 @@ onMounted(async () => {
 onUnmounted(() => {
   ws?.close()
   if (tickTimer) clearInterval(tickTimer)
+  if (cdTimer) clearInterval(cdTimer)
 })
 
 function handleEvent(msg: WSMessage) {
@@ -341,13 +407,14 @@ function handleEvent(msg: WSMessage) {
         if (store.rushState !== 'active') store.rushState = 'active'
       }
       resetQuestionUI()
+      lastRushWasRush.value = true
+      startRushCountdown()
       break
 
     case Ev.RushSuccess:
       store.rushState = 'won'
       store.rushRank = d.rank
       store.my_rush_rank = d.rank
-      lastRushBonus.value = d.bonus
       if (store.me) store.me.score = d.score
       break
 
@@ -360,7 +427,7 @@ function handleEvent(msg: WSMessage) {
       store.status = 'ANSWERING'
       store.rush_active = false
       store.rush_winners = d.winners || []
-      if (store.rushState !== 'won') store.rushState = 'ended'
+      if (store.rushState !== 'won' && store.rushState !== 'lost') store.rushState = 'ended'
       // 获答者答题倒计时
       store.deadline_at = d.answer_deadline_at || 0
       store.remainMs = d.answer_deadline_at ? Math.max(0, d.answer_deadline_at - Date.now() - serverOffset) : 0
@@ -375,6 +442,9 @@ function resetRushState() {
   store.rushRank = 0
   store.rushState = 'idle'
   store.rush_winners = []
+  lastRushWasRush.value = false
+  rushCd.value = 0
+  if (cdTimer) { clearInterval(cdTimer); cdTimer = null }
 }
 
 function resetQuestionUI() {
@@ -402,7 +472,7 @@ function toggle(label: string) {
 }
 
 async function doRush() {
-  if (!store.question || store.rushState !== 'active') return
+  if (!store.question || rushPhase.value !== 'ready') return
   store.rushState = 'wait' // 防连点，等待服务器裁决
   try {
     await userApi.rush(store.question.id)
@@ -416,7 +486,7 @@ async function doRush() {
       store.my_rush_rank = -1
     } else {
       store.rushState = 'active' // 可重试（如网络错误）
-      alert(msg || '抢答失败，请重试')
+      toast(msg || '抢答失败，请重试')
     }
   }
 }
@@ -430,7 +500,7 @@ async function submit() {
     if (store.me) store.me.score = r.total_score
   } catch (e: any) {
     submitted.value = false
-    alert(e?.response?.data?.msg || '提交失败，请重试')
+    toast(e?.response?.data?.msg || '提交失败，请重试')
   }
 }
 
@@ -559,6 +629,10 @@ function formatDur(sec: number) {
   width: 100%;
   max-width: 680px;
   margin: 0 auto;
+}
+/* 底部固定抢答钮出现时，预留空间避免遮挡最后选项 */
+.quiz:has(.rush-dock) .body {
+  padding-bottom: 190px;
 }
 
 /* 断线提示 */
@@ -736,77 +810,171 @@ function formatDur(sec: number) {
   margin-bottom: 22px;
 }
 
-/* 抢答面板 */
+/* 抢答状态区 + 底部固定圆钮 */
 .rush-panel {
   margin-bottom: 20px;
 }
-.rush-btn {
-  width: 100%;
-  padding: 32px 20px;
-  border: none;
-  border-radius: 20px;
-  background: #ff3b30;
-  color: #fff;
-  font-size: 26px;
+.rush-countdown {
+  text-align: center;
+  padding: 18px 0 6px;
+}
+.rush-countdown b {
+  display: inline-block;
+  font-size: 72px;
   font-weight: 800;
+  line-height: 1;
+  color: var(--primary);
+  font-variant-numeric: tabular-nums;
+  animation: cdPop 0.3s ease-out;
+}
+.rush-countdown b.last {
+  color: #fa8c16;
+}
+@keyframes cdPop {
+  from { transform: scale(1.35); opacity: 0.2; }
+  to { transform: scale(1); opacity: 1; }
+}
+.rush-banner {
+  border-radius: 14px;
+  padding: 14px 18px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 12px;
+}
+.rush-banner b {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text);
+}
+.rush-banner small {
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.rush-banner.claimed {
+  border-color: rgba(82, 196, 26, 0.5);
+  background: rgba(82, 196, 26, 0.07);
+}
+.rush-banner.claimed b { color: var(--success); }
+.rush-banner.missed, .rush-banner.timeout {
+  background: #fafafa;
+}
+.rush-banner.missed b, .rush-banner.timeout b { color: #8c8c8c; }
+.rush-meter {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 6px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+}
+.rush-quota {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.rush-quota-bar {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: #f0f1f3;
+  overflow: hidden;
+}
+.rush-quota-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--primary);
+  transition: width 0.3s ease;
+}
+.rush-remain {
+  font-size: 18px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+  min-width: 44px;
+  text-align: right;
+}
+.rush-remain.urgent {
+  color: #fa541c;
+  animation: urgentFlash 0.6s steps(2) infinite;
+}
+@keyframes urgentFlash {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+/* 底部固定抢答按钮 */
+.rush-dock {
+  position: fixed;
+  bottom: calc(24px + env(safe-area-inset-bottom));
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  z-index: 60;
+  pointer-events: none;
+}
+.rush-fab {
+  pointer-events: auto;
+  width: 136px;
+  height: 136px;
+  border-radius: 50%;
+  border: none;
   font-family: inherit;
-  letter-spacing: -0.01em;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+  gap: 3px;
   cursor: pointer;
-  box-shadow: 0 10px 30px rgba(255, 59, 48, 0.35);
-  animation: rushPulse 1.2s ease-in-out infinite;
+  color: #fff;
+  background: var(--card-2);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.12);
+  transition: transform 0.15s ease, background 0.2s ease, box-shadow 0.2s ease;
 }
-.rush-btn:active {
-  transform: scale(0.96);
+.rush-fab b {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
 }
-.rush-btn small {
-  font-size: 13px;
-  font-weight: 500;
+.rush-fab b.cd {
+  font-size: 40px;
+  font-variant-numeric: tabular-nums;
+  animation: cdPop 0.3s ease-out;
+}
+.rush-fab b.big-check { font-size: 44px; }
+.rush-fab small {
+  font-size: 11px;
   opacity: 0.9;
 }
-@keyframes rushPulse {
-  0%, 100% { box-shadow: 0 10px 30px rgba(255, 59, 48, 0.3); }
-  50% { box-shadow: 0 10px 38px rgba(255, 59, 48, 0.55); transform: scale(1.012); }
+.rush-fab:disabled { cursor: default; }
+.rush-fab.ready {
+  background: #1677ff;
+  box-shadow: 0 8px 28px rgba(22, 119, 255, 0.45);
+  animation: fabPulse 1.6s ease-in-out infinite;
 }
-.rush-state {
-  border-radius: 16px;
-  padding: 26px 20px;
-  text-align: center;
-  font-size: 19px;
-  font-weight: 700;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+.rush-fab.ready:active { transform: scale(0.94); }
+.rush-fab.countdown { background: #b9c0cc; }
+.rush-fab.claiming { background: #5a95e8; }
+.rush-fab.claimed {
+  background: #52c41a;
+  box-shadow: 0 6px 22px rgba(82, 196, 26, 0.35);
 }
-.rush-state small {
-  font-size: 13px;
-  font-weight: 500;
-  opacity: 0.85;
+.rush-fab.missed, .rush-fab.waiting { background: #bfbfbf; color: #fff; }
+.rush-fab.timeout { background: rgba(250, 140, 22, 0.75); }
+.rush-fab.ended { background: #bfbfbf; }
+@keyframes fabPulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 8px 28px rgba(22, 119, 255, 0.4); }
+  50% { transform: scale(1.03); box-shadow: 0 8px 34px rgba(22, 119, 255, 0.6); }
 }
-.rush-state.won {
-  background: rgba(52, 199, 89, 0.12);
-  color: var(--success);
-  border: 1px solid rgba(52, 199, 89, 0.5);
-}
-.rush-state.lost {
-  background: rgba(255, 59, 48, 0.08);
-  color: var(--danger);
-  border: 1px solid rgba(255, 59, 48, 0.4);
-}
-.rush-state.wait,
-.rush-state.ended {
-  background: var(--bg);
-  color: var(--text-dim);
-  border: 1px dashed var(--border);
-}
-.rush-count {
-  margin-top: 10px;
-  font-size: 12px;
-  color: var(--text-dim);
-  text-align: center;
+@media (prefers-reduced-motion: reduce) {
+  .rush-fab.ready, .rush-remain.urgent, .rush-countdown b, .rush-fab b.cd { animation: none; }
 }
 
 /* 选项 */

@@ -478,15 +478,10 @@ func (e *Engine) SubmitAnswer(quizID, questionID, userID int64, answer string, d
 	if earn <= 0 {
 		earn = q.Score
 	}
+	// 计分唯一口径：答对得本题分值（按题型配置），答错 0 分；无抢答奖励、无答错倒扣
 	score := 0
 	if isCorrect {
 		score = earn
-	} else if isRush {
-		if d := rt.quiz.RushDeduct(q.Type); d > 0 {
-			score = -d // 按题型配置的扣分
-		} else if rt.quiz.RushWrongScore > 0 {
-			score = -earn // 兜底：开启扣分但未配题型 → 扣本题分值
-		}
 	}
 
 	rec := model.Answer{
