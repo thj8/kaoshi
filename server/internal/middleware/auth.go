@@ -7,6 +7,8 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"kaoshi/internal/auth"
+
+	"gorm.io/gorm"
 )
 
 // BearerToken 从 Authorization 头提取 token
@@ -32,11 +34,18 @@ func AdminAuth() gin.HandlerFunc {
 }
 
 // UserAuth 用户端鉴权中间件
-func UserAuth() gin.HandlerFunc {
+func UserAuth(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		claims, err := auth.Parse(BearerToken(c))
 		if err != nil || claims.Role != auth.RoleUser {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"code": 401, "msg": "请先加入答题"})
+			return
+		}
+		// token 内 user 必须仍存在（防清库/重置后旧 token 静默产生孤儿数据）
+		var n int64
+		db.Table("users").Where("id = ?", claims.UserID).Count(&n)
+		if n == 0 {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"code": 401, "msg": "账号已失效，请重新登录"})
 			return
 		}
 		c.Set("claims", claims)

@@ -435,6 +435,12 @@ func (e *Engine) SubmitAnswer(quizID, questionID, userID int64, answer string, d
 	if rt.curIndex < 0 || rt.curIndex >= len(rt.questions) || rt.questions[rt.curIndex].ID != questionID {
 		return nil, errors.New("当前题目不匹配")
 	}
+	// 参赛者必须存在：否则 UPDATE 匹配 0 行、总分回读为 0，产生孤儿答案
+	var pc int64
+	e.DB.Model(&model.Participant{}).Where("quiz_id = ? AND user_id = ?", quizID, userID).Count(&pc)
+	if pc == 0 {
+		return nil, errors.New("参赛信息不存在，请重新加入本场答题")
+	}
 	q := rt.questions[rt.curIndex]
 
 	// 抢答题资格：按题目属性判定（required=false 即抢答题），而非"是否已有人抢过"——

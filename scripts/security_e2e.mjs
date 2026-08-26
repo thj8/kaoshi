@@ -84,6 +84,18 @@ function connect(token, onMsg) {
   const noJoin = await j('POST', `/api/question/${qN.id}/answer`, { answer: 'A', duration: 100 }, eve.token)
   check('C3 未参加者提交被拒', noJoin.code !== 0, `code=${noJoin.code}`)
 
+  // ---------- 1a. 失效身份：用户被删后旧 token 提交必须被拒（防孤儿答案/总分 0）
+  const ghost = await reg(`ghost${sfx}`, '幽灵')
+  const jG = (await j('POST', '/api/join', { quiz_id: quizN.id }, ghost.token)).data
+  await j('POST', `/api/admin/quiz/${quizN.id}/start`, {}, at); await sleep(300)
+  const uId = JSON.parse(Buffer.from(ghost.token.split('.')[1], 'base64').toString()).uid
+  await j('DELETE', `/api/admin/users/${uId}`, null, at) // 删用户（级联 participants/answers）
+  const ghostAns = await j('POST', `/api/question/${qN.id}/answer`, { answer: 'A', duration: 100 }, jG.token)
+  check('C9 失效 token（用户已删）提交被拒', ghostAns.code !== 0, `code=${ghostAns.code} msg=${ghostAns.msg}`)
+  const ghostRush = await j('POST', `/api/question/${qN.id}/rush`, {}, jG.token)
+  check('C10 失效 token 抢答被拒', ghostRush.code !== 0, `code=${ghostRush.code} msg=${ghostRush.msg}`)
+  await j('POST', `/api/admin/quiz/${quizN.id}/reset`, {}, at) // 恢复 WAITING 供后续用例
+
   // ---------- 1b. 普通模式混合题：抢答题在抢答前不可直接作答（防绕过抢答） ----------
   const quizX = (await mkQ('sec-mixed', 'normal', { rush_enabled: true, rush_time: 15, rush_answer_time: 20 })).data
   const qX = (await mkQs(quizX.id, { type: 'single', content: '混合抢答题?', answer: 'B', score: 10, required: false, time_limit: 20, options: opts(['A', 'B']) })).data
