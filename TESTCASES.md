@@ -15,7 +15,7 @@ node scripts/hardening_e2e.mjs   # 抢答并发/越权/防重复/重连（7 项�
 | # | 用例 | 脚本 | 状态 |
 |---|------|------|------|
 | A1 | 抢答模式开窗前普通提交被拒 | security_e2e | ✅ |
-| A2 | 抢答成功 rank=1 | security_e2e | ✅ |
+| A2 | 抢答成功 rank=1 且无奖励分 | security_e2e | ✅ |
 | A3 | 未抢到的选手提交被拒 | security_e2e | ✅ |
 | A4 | 抢答窗口关闭后再抢被拒 | security_e2e | ✅ |
 | A5 | 抢到资格的选手可提交 | security_e2e | ✅ |
@@ -39,6 +39,22 @@ node scripts/hardening_e2e.mjs   # 抢答并发/越权/防重复/重连（7 项�
 | H5 | 100 并发抢答：rank=1 唯一 | hardening_e2e | ✅ |
 | H6 | 重连恢复：sync 带回状态与当前题 | hardening_e2e | ✅ |
 | H7 | 重连后仍可作答 | hardening_e2e | ✅ |
+| H8 | 实时统计：已答不含未答占位行 | hardening_e2e | ✅ |
+| H9 | 实时统计：正确/错误不含未答（1/1） | hardening_e2e | ✅ |
+| H10 | 实时统计：正确率分母为真实作答（50%） | hardening_e2e | ✅ |
+| S1 | 抢答答对=题目分值，无奖励分 | security_e2e | ✅ |
+| S2 | 抢答答错 0 分不倒扣 | security_e2e | ✅ |
+| S3 | 必答答对按题目分值、答错 0 分 | hardening_e2e | ✅ |
+| S4 | rush 模式答对=题目分值无奖励 | security_e2e | ✅ |
+| T1 | 即时 total_score 跨题累计 | hardening_e2e | ✅ |
+| T2 | 排行榜按分数降序、名次连续 | hardening_e2e | ✅ |
+| T3 | 总分=各题得分之和（20/10/0） | hardening_e2e | ✅ |
+| T4 | 未答题者 0 分在榜 | hardening_e2e | ✅ |
+| T5 | 成绩单总分=累计分 | hardening_e2e | ✅ |
+| X1 | 普通模式混合题：开窗前直接提交被拒 | security_e2e | ✅ |
+| X2 | 窗口开启中未抢先答被拒 | security_e2e | ✅ |
+| X3 | 普通模式混合题抢答成功 rank=1 | security_e2e | ✅ |
+| X4 | 混合题抢到后可提交 | security_e2e | ✅ |
 
 ## 用例详细说明
 
