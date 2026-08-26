@@ -1,6 +1,7 @@
 package api
 
 import (
+	"log"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -138,6 +139,8 @@ func (h *AnswerHandler) Result(c *gin.Context) {
 func (h *AnswerHandler) Rush(c *gin.Context) {
 	claims := c.MustGet("claims").(*auth.Claims)
 	questionID, _ := parseInt64(c.Param("id"))
+	// 发起日志：接口调用即记（结果日志由引擎补，两条一对）
+	log.Printf("[rush] quiz=%d q=%d %s 发起抢答", claims.QuizID, questionID, claims.Nick)
 	result, err := h.Eng.RushSubmit(claims.QuizID, questionID, claims.UserID)
 	if err != nil {
 		fail(c, 400, err.Error())

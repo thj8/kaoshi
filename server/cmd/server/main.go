@@ -24,6 +24,9 @@ func main() {
 	cfg := config.Load()
 	auth.Init(cfg.JWTSecret, cfg.TokenTTL)
 
+	// 日志时间到毫秒（stdlib 无毫秒档，用微秒档覆盖）
+	log.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds)
+
 	// 日志同时落盘（stdout 保留，docker logs 仍可用）
 	if cfg.LogFile != "" {
 		if err := os.MkdirAll(filepath.Dir(cfg.LogFile), 0o755); err != nil {
