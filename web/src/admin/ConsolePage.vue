@@ -105,7 +105,7 @@
             </div>
             <div v-if="revealed" class="rr-sec">
               <small>答题得分</small>
-              <b class="rr-ans" :class="winnerCorrect ? 'ok' : 'no'">{{ winnerCorrect ? '+' + curQuestion.score + '分' : '0分' }}</b>
+              <b class="rr-ans" :class="winnerCorrect ? 'ok' : 'no'">{{ (winnerScore > 0 ? '+' : '') + winnerScore + '分' }}</b>
             </div>
           </div>
         </template>
@@ -154,6 +154,7 @@ const remainMs = ref(0)
 
 const stats = reactive({ participants: 0, answered: 0, correct: 0, wrong: 0, max_score: 0 })
 const distribution = ref<Record<string, number>>({})
+const answerScores = ref<Record<string, number>>({})
 
 let ws: QuizWS | null = null
 let tickTimer: number | null = null
@@ -173,6 +174,8 @@ const statusText = computed(() => ({ WAITING: '未开始', RUNNING: '进行中',
 /** 获答者提交的答案：抢答题 distribution 的非“-”键即其作答 */
 const winnerAnswer = computed(() => Object.keys(distribution.value).filter((k) => k !== '-').join(''))
 const winnerCorrect = computed(() => !!winnerAnswer.value && winnerAnswer.value === curQuestion.value?.answer)
+/** 服务端判定的实际得分（抢答答错可为负） */
+const winnerScore = computed(() => answerScores.value[winnerAnswer.value] ?? 0)
 watch(curIndex, () => {
   nextTick(() => {
     const box = qScroll.value, el = curEl.value
@@ -226,6 +229,7 @@ function handleEvent(msg: WSMessage) {
       if (d.status === 'REVEALING') {
         revealed.value = true
         if (d.distribution) distribution.value = d.distribution
+        if (d.answer_scores) answerScores.value = d.answer_scores
       }
       if (d.question) {
         applyQuestion(d.question, d.deadline_at || 0)
@@ -235,6 +239,7 @@ function handleEvent(msg: WSMessage) {
       status.value = d.status || 'ANSWERING'
       revealed.value = false
       distribution.value = {}
+      answerScores.value = {}
       rushWinners.value = []
       stats.answered = 0
       stats.correct = 0
@@ -252,11 +257,13 @@ function handleEvent(msg: WSMessage) {
       stats.wrong = d.wrong ?? 0
       stats.max_score = d.max_score ?? stats.max_score
       distribution.value = d.distribution || {}
+      answerScores.value = d.answer_scores || {}
       break
     case Ev.AnswerReveal:
       revealed.value = true
       status.value = 'REVEALING'
       if (d.distribution) distribution.value = d.distribution
+      if (d.answer_scores) answerScores.value = d.answer_scores
       if (d.stats) {
         stats.answered = d.stats.total
         stats.correct = d.stats.correct

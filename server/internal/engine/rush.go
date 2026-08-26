@@ -97,20 +97,27 @@ func (e *Engine) rushStartLocked(rt *Runtime) error {
 	k1, k2 := rushKeys(quizID, q.ID)
 	e.RDB.Del(context.Background(), k1, k2)
 
-	rt.rushDeadline = time.Now().Add(time.Duration(rt.quiz.RushTime) * time.Second).UnixMilli()
+	// 开抢倒计时：窗口在 open_at 后才真正开启；截止 = 开启 + 窗口时长（时长不因倒计时缩短）
+	rushCountdown := rt.quiz.RushCountdown
+	if rushCountdown < 0 {
+		rushCountdown = 0
+	}
+	rt.rushOpenAt = nowMilli() + int64(rushCountdown)*1000
+	rt.rushDeadline = rt.rushOpenAt + int64(rt.quiz.RushTime)*1000
 	rt.quiz.Status = model.QuizStatusRushing
 	e.DB.Model(&model.Quiz{}).Where("id = ?", quizID).Update("status", model.QuizStatusRushing)
 
 	e.Hub.Broadcast(quizID, ws.EventRushStart, &ws.RushStartData{
 		QuestionID: q.ID,
 		Winners:    rt.quiz.RushWinnerCount,
+		OpenAt:     rt.rushOpenAt,
 		DeadlineAt: rt.rushDeadline,
 		ServerNow:  nowMilli(),
 	})
 
 	// 抢答窗口计时 + 每秒倒计时广播
 	qID := q.ID
-	rt.startRushTimerLocked(time.Duration(rt.quiz.RushTime)*time.Second, func() {
+	rt.startRushTimerLocked(time.Duration(rt.rushDeadline-nowMilli())*time.Millisecond, func() {
 		e.RushEnd(quizID)
 	})
 	rt.startRushTickerLocked(qID)
@@ -137,6 +144,7 @@ func (e *Engine) rushEndLocked(rt *Runtime) error {
 	rt.stopRushTimer()
 	rt.stopRushTicker()
 	rt.rushDeadline = 0
+	rt.rushOpenAt = 0
 
 	q := rt.questions[rt.curIndex]
 	winners := e.redisWinners(rt, q.ID)
@@ -197,6 +205,10 @@ func (e *Engine) RushSubmit(quizID, questionID, userID int64) (*ws.RushResultDat
 	e.DB.Model(&model.Participant{}).Where("quiz_id = ? AND user_id = ?", quizID, userID).Count(&pc)
 	if pc == 0 {
 		return nil, errors.New("参赛信息不存在，请重新加入本场答题")
+	}
+	// 开抢倒计时未结束：拒绝（防 API 直连绕过前端倒计时抢跑）
+	if rt.rushOpenAt > 0 && nowMilli() < rt.rushOpenAt {
+		return nil, errors.New("抢答尚未开始，请稍候")
 	}
 	// 窗口校验（宽限 500ms 网络延迟），以服务器时间为准
 	if rt.rushDeadline > 0 && nowMilli() > rt.rushDeadline+500 {

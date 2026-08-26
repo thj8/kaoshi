@@ -62,18 +62,22 @@ func (e *Engine) Snapshot(claims *auth.Claims) (*ws.SyncData, error) {
 
 		if rt.quiz.Status == model.QuizStatusRushing {
 			data.DeadlineAt = rt.rushDeadline
+			data.RushOpenAt = rt.rushOpenAt
 			data.RushWinners = e.redisWinners(rt, cq.ID)
 			if claims.Role == auth.RoleUser {
 				data.MyRushRank = e.myRushRank(quizID, cq.ID, claims.UserID)
 			}
 		} else if rt.quiz.Status == model.QuizStatusRevealing {
 			// 刷新恢复：公布阶段下发答案分布
-			var rows []struct{ Answer string; Cnt int }
-			e.DB.Model(&model.Answer{}).Select("answer, COUNT(*) as cnt").
+			var rows []struct{ Answer string; Cnt int; Score int }
+			e.DB.Model(&model.Answer{}).Select("answer, COUNT(*) as cnt, MAX(score) as score").
 				Where("quiz_id = ? AND question_id = ?", quizID, cq.ID).
 				Group("answer").Scan(&rows)
-			data.Distribution = map[string]int{}
-			for _, r := range rows { data.Distribution[r.Answer] = r.Cnt }
+			data.Distribution, data.AnswerScores = map[string]int{}, map[string]int{}
+			for _, r := range rows {
+				data.Distribution[r.Answer] = r.Cnt
+				data.AnswerScores[r.Answer] = r.Score
+			}
 			if e.isRushQuestion(quizID, cq.ID) {
 				data.RushWinners = e.rushWinnersFromDB(quizID, cq.ID)
 			}

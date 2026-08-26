@@ -37,6 +37,7 @@ type Runtime struct {
 
 	// 抢答窗口
 	rushDeadline int64
+	rushOpenAt   int64 // 窗口开启毫秒时间戳（0=已开启/无窗口）；开启前 RushSubmit 一律拒绝
 	rushTimer   *SyncTimer
 	tickRush    *ticker
 }

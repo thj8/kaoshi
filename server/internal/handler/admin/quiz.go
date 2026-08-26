@@ -81,6 +81,7 @@ type quizReq struct {
 	RushWinnerCount int    `json:"rush_winner_count" binding:"min=0,max=10"`
 	RushTime        int    `json:"rush_time" binding:"min=0,max=120"`
 	RushAnswerTime  int    `json:"rush_answer_time" binding:"min=0,max=600"`
+	RushCountdown   *int   `json:"rush_countdown"` // 0=窗口即开（有效值，用指针区分未传；负值引擎钳 0）
 	RushBonusScore  int    `json:"rush_bonus_score" binding:"min=0"`
 	RushWrongScore  int    `json:"rush_wrong_score" binding:"min=0"`
 
@@ -115,6 +116,7 @@ func (h *Handler) CreateQuiz(c *gin.Context) {
 		RushWinnerCount: orDefault(req.RushWinnerCount, 1),
 		RushTime:        orDefault(req.RushTime, 10),
 		RushAnswerTime:  orDefault(req.RushAnswerTime, 20),
+		RushCountdown:   intOr(req.RushCountdown, 3),
 		RushBonusScore:  orDefault(req.RushBonusScore, 5),
 		RushWrongScore:  req.RushWrongScore,
 		ReqScoreSingle:     req.ReqScoreSingle,
@@ -161,6 +163,7 @@ func (h *Handler) UpdateQuiz(c *gin.Context) {
 	quiz.RushWinnerCount = orDefault(req.RushWinnerCount, quiz.RushWinnerCount)
 	quiz.RushTime = orDefault(req.RushTime, quiz.RushTime)
 	quiz.RushAnswerTime = orDefault(req.RushAnswerTime, quiz.RushAnswerTime)
+	quiz.RushCountdown = intOr(req.RushCountdown, quiz.RushCountdown)
 	quiz.RushBonusScore = orDefault(req.RushBonusScore, quiz.RushBonusScore)
 	quiz.RushWrongScore = req.RushWrongScore
 	quiz.ReqScoreSingle = req.ReqScoreSingle
@@ -416,6 +419,13 @@ func orDefault(v, def int) int {
 		return def
 	}
 	return v
+}
+
+func intOr(v *int, def int) int {
+	if v == nil {
+		return def
+	}
+	return *v
 }
 
 func boolOr(v *bool, def bool) bool {
