@@ -54,7 +54,7 @@ function connect(token, onMsg) {
   const mkQs = (id, q) => j('POST', `/api/admin/quiz/${id}/questions`, q, at)
   const opts = labels => labels.map((l, i) => ({ label: l, content: `选项${l}` }))
 
-  const quizR = (await mkQ('sec-rush', 'rush', { show_answer: true, show_analysis: true, show_ranking: true })).data
+  const quizR = (await mkQ('sec-rush', 'rush', { show_answer: true, show_analysis: true, show_ranking: true, rush_countdown: 0 })).data
   const qR = (await mkQs(quizR.id, { type: 'single', content: '抢答题?', answer: 'B', score: 10, required: true, time_limit: 20, options: opts(['A', 'B']) })).data
   const quizN = (await mkQ('sec-normal-hidden', 'normal', { show_answer: false, show_analysis: false, show_ranking: true })).data
   const qN = (await mkQs(quizN.id, { type: 'single', content: '隐藏题?', answer: 'A', score: 10, required: true, time_limit: 20, options: opts(['A', 'B']) })).data
@@ -97,7 +97,7 @@ function connect(token, onMsg) {
   await j('POST', `/api/admin/quiz/${quizN.id}/reset`, {}, at) // 恢复 WAITING 供后续用例
 
   // ---------- 1b. 普通模式混合题：抢答题在抢答前不可直接作答（防绕过抢答） ----------
-  const quizX = (await mkQ('sec-mixed', 'normal', { rush_enabled: true, rush_time: 15, rush_answer_time: 20, rush_deduct_single: 4 })).data
+  const quizX = (await mkQ('sec-mixed', 'normal', { rush_enabled: true, rush_time: 15, rush_answer_time: 20, rush_deduct_single: 4, rush_countdown: 0 })).data
   const qX = (await mkQs(quizX.id, { type: 'single', content: '混合抢答题?', answer: 'B', score: 10, required: false, time_limit: 20, options: opts(['A', 'B']) })).data
   const qX2 = (await mkQs(quizX.id, { type: 'single', content: '混合抢答题2?', answer: 'A', score: 10, required: false, time_limit: 20, options: opts(['A', 'B']) })).data
   const jX_a = (await j('POST', '/api/join', { quiz_id: quizX.id }, alice.token)).data
@@ -123,6 +123,18 @@ function connect(token, onMsg) {
   await j('POST', `/api/admin/quiz/${quizX.id}/rush/end`, {}, at); await sleep(300)
   const xWrong = await j('POST', `/api/question/${qX2.id}/answer`, { answer: 'B', duration: 100 }, jX_a.token)
   check('S2 抢答答错按题型扣分(-4)', xWrong.code === 0 && xWrong.data?.score === -4 && xWrong.data?.total_score === 6, `score=${xWrong.data?.score} total=${xWrong.data?.total_score}`)
+
+  // ---------- 1d. 抢答开抢倒计时（服务端 open_at；防 API 直连绕过前端 3s 动画） ----------
+  const quizC = (await mkQ('sec-countdown', 'normal', { rush_enabled: true, rush_time: 15, rush_answer_time: 20 })).data // 默认 rush_countdown=3
+  const qC = (await mkQs(quizC.id, { type: 'single', content: '倒计时抢答题?', answer: 'A', score: 10, required: false, time_limit: 20, options: opts(['A', 'B']) })).data
+  const jC_a = (await j('POST', '/api/join', { quiz_id: quizC.id }, alice.token)).data
+  await j('POST', `/api/admin/quiz/${quizC.id}/start`, {}, at); await sleep(300)
+  await j('POST', `/api/admin/quiz/${quizC.id}/rush/start`, {}, at)
+  const earlyRush = await j('POST', `/api/question/${qC.id}/rush`, {}, jC_a.token)
+  check('X18 开抢倒计时内 API 抢答被拒', earlyRush.code !== 0 && /尚未开始/.test(earlyRush.msg || ''), `code=${earlyRush.code} msg=${earlyRush.msg}`)
+  await sleep(3200)
+  const onTimeRush = await j('POST', `/api/question/${qC.id}/rush`, {}, jC_a.token)
+  check('X19 倒计时结束后抢答成功', onTimeRush.code === 0 && onTimeRush.data?.rank === 1, `code=${onTimeRush.code} msg=${onTimeRush.msg}`)
 
   // ---------- 1c. 邀请制 + 我的比赛（quiz_invitees，X 系列） ----------
   const quizV = (await mkQ('sec-invite', 'normal', { show_ranking: true })).data // 受限赛

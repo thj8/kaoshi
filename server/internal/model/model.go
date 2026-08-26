@@ -48,6 +48,7 @@ type Quiz struct {
 	RushWinnerCount int `gorm:"notNull;default:1" json:"rush_winner_count"` // 每题抢答名额
 	RushTime        int `gorm:"notNull;default:10" json:"rush_time"`        // 抢答窗口（秒）
 	RushAnswerTime  int `gorm:"notNull;default:20" json:"rush_answer_time"` // 抢答成功后答题时间（秒）
+	RushCountdown   int `gorm:"notNull" json:"rush_countdown"`              // 开抢倒计时（秒，0=窗口即开；勿加 default 标签——GORM 会把显式 0 改写回默认值）
 	RushBonusScore  int `gorm:"notNull;default:5" json:"rush_bonus_score"`  // 抢答成功奖励分
 	RushWrongScore  int `gorm:"notNull;default:0" json:"rush_wrong_score"`  // 抢答题答错是否扣分（>0 开启，扣本题对应分值）
 

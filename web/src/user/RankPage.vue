@@ -13,6 +13,7 @@
       <!-- 列头（桌面） -->
       <div v-if="teams.length" class="cols">
         <span>排名</span><span>队伍</span><span class="r">总分</span>
+        <span class="r">必答分</span><span class="r">抢答分</span>
         <span class="r">答题数</span><span class="r">答对数</span><span class="r">正确率</span><span class="r">更新时间</span>
       </div>
 
@@ -41,6 +42,8 @@
               </span>
             </transition>
           </div>
+          <div class="mini r gold">{{ t.reqScore }}</div>
+          <div class="mini r cyan">{{ t.rushScore }}</div>
           <div class="mini r">{{ t.answered }}</div>
           <div class="mini r ok">{{ t.correct }}</div>
           <div class="mini r dim">{{ rate(t) }}</div>
@@ -86,6 +89,8 @@ interface Team {
   disp: number // 滚动显示分
   answered: number
   correct: number
+  reqScore: number
+  rushScore: number
   rank: number
   prevRank: number
   delta: number // 排名变化（正=上升）
@@ -116,24 +121,25 @@ function seedDemo() {
   teams.length = 0
   byId.clear()
   DEMO.forEach(([name, score, ans, ok], i) => {
-    const t = reactive<Team>({ id: i + 1, name, score, disp: score, answered: ans, correct: ok, rank: i + 1, prevRank: i + 1, delta: 0, diff: 0, fx: '', updatedAt: Date.now() })
+    const t = reactive<Team>({ id: i + 1, name, score, disp: score, answered: ans, correct: ok, reqScore: Math.round(score * 0.7), rushScore: score - Math.round(score * 0.7), rank: i + 1, prevRank: i + 1, delta: 0, diff: 0, fx: '', updatedAt: Date.now() })
     teams.push(t); byId.set(t.id, t)
   })
 }
 
 /** 核心更新入口：diffs = {id: {score, answered, correct}}，只更新变化的队伍 */
-function applyUpdate(rows: { user_id?: number; nickname?: string; score: number; answered: number; correct: number }[], ids: number[] = []) {
+function applyUpdate(rows: { user_id?: number; nickname?: string; score: number; answered: number; correct: number; required_score?: number; rush_score?: number }[], ids: number[] = []) {
   const prevOrder = new Map(teams.map((t) => [t.id, t.rank]))
   for (const r of rows) {
     const id = r.user_id ?? ids.shift()!
     let t = byId.get(id)
     if (!t) {
-      t = reactive<Team>({ id, name: r.nickname || `队伍${id}`, score: 0, disp: 0, answered: 0, correct: 0, rank: 99, prevRank: 99, delta: 0, diff: 0, fx: '', updatedAt: 0 })
+      t = reactive<Team>({ id, name: r.nickname || `队伍${id}`, score: 0, disp: 0, answered: 0, correct: 0, reqScore: 0, rushScore: 0, rank: 99, prevRank: 99, delta: 0, diff: 0, fx: '', updatedAt: 0 })
       teams.push(t); byId.set(id, t)
     }
     const dScore = r.score - t.score
     if (r.nickname) t.name = r.nickname
     t.answered = r.answered; t.correct = r.correct
+    t.reqScore = r.required_score ?? 0; t.rushScore = r.rush_score ?? (t.score - (r.required_score ?? 0))
     if (dScore !== 0) {
       t.score = r.score
       t.diff = dScore
@@ -300,7 +306,7 @@ const barW = (t: Team) => {
 /* ---- 列头 ---- */
 .cols, .row {
   display: grid;
-  grid-template-columns: 76px minmax(150px, 1.25fr) 168px repeat(3, minmax(64px, 0.62fr)) 104px;
+  grid-template-columns: 76px minmax(150px, 1.15fr) 150px repeat(5, minmax(58px, 0.55fr)) 104px;
   align-items: center;
   column-gap: 10px;
 }
@@ -383,6 +389,8 @@ const barW = (t: Team) => {
 .mini { color: #dbe6f5; font-size: clamp(14px, 1.15vw, 17px); font-weight: 600; }
 .mini.ok { color: #8ee6a1; }
 .mini.dim { color: #9fb3cf; }
+.mini.gold { color: #ffd700; }
+.mini.cyan { color: #6fd4ff; }
 .time { color: #6d84a8; font-size: 12.5px; }
 
 .pop-enter-active, .pop-leave-active { transition: all 0.25s; }
@@ -413,8 +421,9 @@ const barW = (t: Team) => {
 
 /* ---- 平板 ---- */
 @media (max-width: 1279px) {
-  .cols, .row { grid-template-columns: 60px minmax(130px, 1.3fr) 128px repeat(3, minmax(52px, 0.6fr)); }
-  .cols span:nth-child(7), .time { display: none; }
+  .cols, .row { grid-template-columns: 60px minmax(130px, 1.2fr) 118px repeat(4, minmax(48px, 0.55fr)); }
+  .cols span:nth-child(8), .cols span:nth-child(9),
+  .row .mini:nth-child(8), .time { display: none; }
 }
 
 /* ---- 手机卡片 ---- */
@@ -438,9 +447,11 @@ const barW = (t: Team) => {
   .mini { font-size: 12.5px; font-weight: 500; }
   .mini.r { text-align: left; }
   .mini:nth-child(4) { grid-area: st; }
-  .mini:nth-child(4)::before { content: '答题 '; color: #6d84a8; }
-  .mini:nth-child(5)::before { content: '· 答对 '; color: #6d84a8; }
-  .mini:nth-child(5) { margin-left: 8px; }
-  .mini:nth-child(6), .time { display: none; }
+  .mini:nth-child(4)::before { content: '必答 '; color: #6d84a8; }
+  .mini:nth-child(5), .mini:nth-child(6), .mini:nth-child(7) { display: inline-block; margin-left: 10px; }
+  .mini:nth-child(5)::before { content: '· 抢答 '; color: #6d84a8; }
+  .mini:nth-child(6)::before { content: '· 答题 '; color: #6d84a8; }
+  .mini:nth-child(7)::before { content: '· 答对 '; color: #6d84a8; }
+  .mini:nth-child(8), .time { display: none; }
 }
 </style>

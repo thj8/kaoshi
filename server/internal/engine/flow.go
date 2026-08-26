@@ -180,7 +180,7 @@ func (e *Engine) revealLocked(quizID int64, rt *Runtime) error {
 	e.DB.Model(&model.Quiz{}).Where("id = ?", quizID).Update("status", model.QuizStatusRevealing)
 
 	// 用户端（按配置裁剪答案/解析；个人答案/得分按参与者单播）
-	stats, dist := e.questionStats(quizID, q.ID)
+	stats, dist, scores := e.questionStats(quizID, q.ID)
 	base := &ws.RevealData{
 		QuestionID: q.ID,
 		Stats:      stats,
@@ -210,6 +210,7 @@ func (e *Engine) revealLocked(quizID int64, rt *Runtime) error {
 		Analysis:     q.Analysis,
 		Stats:        stats,
 		Distribution: dist,
+		AnswerScores: scores,
 	}
 	e.Hub.BroadcastAdmins(quizID, ws.EventAnswerReveal, adminData)
 
@@ -604,7 +605,7 @@ type QuestionStats struct {
 }
 
 // questionStats 当前题统计（调用方持锁）
-func (e *Engine) questionStats(quizID, questionID int64) (*ws.RevealStats, map[string]int) {
+func (e *Engine) questionStats(quizID, questionID int64) (*ws.RevealStats, map[string]int, map[string]int) {
 	var participants, answered, correct int64
 	e.DB.Model(&model.Participant{}).Where("quiz_id = ?", quizID).Count(&participants)
 	// 统计口径：排除未答占位行（answer="-"，收卷时由 markUnanswered 补写），否则已答虚高、未答算负数
@@ -613,24 +614,26 @@ func (e *Engine) questionStats(quizID, questionID int64) (*ws.RevealStats, map[s
 	e.DB.Model(&model.Answer{}).
 		Where("quiz_id = ? AND question_id = ? AND is_correct = ? AND answer != ?", quizID, questionID, true, AnswerUnanswered).Count(&correct)
 
-	dist := map[string]int{}
+	dist, ansScores := map[string]int{}, map[string]int{}
 	type row struct {
 		Answer string
 		Cnt    int
+		Score  int
 	}
 	var rows []row
-	e.DB.Model(&model.Answer{}).Select("answer, COUNT(*) as cnt").
+	e.DB.Model(&model.Answer{}).Select("answer, COUNT(*) as cnt, MAX(score) as score").
 		Where("quiz_id = ? AND question_id = ? AND answer != ?", quizID, questionID, AnswerUnanswered).
 		Group("answer").Scan(&rows)
 	for _, r := range rows {
 		dist[r.Answer] = r.Cnt
+		ansScores[r.Answer] = r.Score
 	}
-	return &ws.RevealStats{Total: int(answered), Correct: int(correct), Wrong: int(answered) - int(correct)}, dist
+	return &ws.RevealStats{Total: int(answered), Correct: int(correct), Wrong: int(answered) - int(correct)}, dist, ansScores
 }
 
 // broadcastStatistics 实时统计（管理端）
 func (e *Engine) broadcastStatistics(quizID, questionID int64) {
-	stats, dist := e.questionStats(quizID, questionID)
+	stats, dist, scores := e.questionStats(quizID, questionID)
 	var maxScore int
 	e.DB.Model(&model.Participant{}).Where("quiz_id = ?", quizID).
 		Select("COALESCE(MAX(score),0)").Scan(&maxScore)
@@ -647,6 +650,7 @@ func (e *Engine) broadcastStatistics(quizID, questionID int64) {
 		"wrong":        stats.Wrong,
 		"max_score":    maxScore,
 		"distribution": dist,
+		"answer_scores": scores,
 	})
 }
 
@@ -658,10 +662,13 @@ func (e *Engine) buildRanking(quizID int64, limit int) []ws.RankingItem {
 		Score        int
 		CorrectCount int
 		WrongCount   int
+		RequiredScore int
 	}
 	var rows []row
 	e.DB.Table("participants").
-		Select("participants.user_id, users.nickname, participants.score, participants.correct_count, participants.wrong_count").
+		Select(`participants.user_id, users.nickname, participants.score, participants.correct_count, participants.wrong_count,
+			(SELECT COALESCE(SUM(a.score), 0) FROM answers a JOIN questions q ON q.id = a.question_id
+			 WHERE a.quiz_id = participants.quiz_id AND a.user_id = participants.user_id AND q.required = 1) AS required_score`).
 		Joins("JOIN users ON users.id = participants.user_id").
 		Where("participants.quiz_id = ?", quizID).
 		Order("participants.score DESC, participants.correct_count DESC, participants.joined_at ASC").
@@ -673,6 +680,7 @@ func (e *Engine) buildRanking(quizID int64, limit int) []ws.RankingItem {
 			Rank: i + 1, UserID: r.UserID, Nickname: r.Nickname,
 			Score: r.Score, Correct: r.CorrectCount, Wrong: r.WrongCount,
 			Answered: r.CorrectCount + r.WrongCount,
+			RequiredScore: r.RequiredScore, RushScore: r.Score - r.RequiredScore,
 		}
 	}
 	return items

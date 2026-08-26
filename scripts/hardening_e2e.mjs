@@ -63,7 +63,7 @@ function connect(token, onMsg) {
   await j('POST', `/api/admin/quiz/${quizA.id}/end`, {}, at)
 
   // ---------- 2. 100 并发抢答唯一性 ----------
-  const rq = (await j('POST', '/api/admin/quiz', { title: 's8-rush100', mode: 'rush', rush_winner_count: 1, rush_time: 15, rush_answer_time: 20, rush_bonus_score: 5, show_ranking: true }, at)).data
+  const rq = (await j('POST', '/api/admin/quiz', { title: 's8-rush100', mode: 'rush', rush_winner_count: 1, rush_time: 15, rush_answer_time: 20, rush_bonus_score: 5, show_ranking: true, rush_countdown: 0 }, at)).data
   const qr = (await j('POST', `/api/admin/quiz/${rq.id}/questions`, { type: 'single', content: 'R?', answer: 'A', score: 10, required: true, sort: 1, options: [{ label: 'A', content: '1' }, { label: 'B', content: '2' }] }, at)).data
   const N = 100
   const tokens = []

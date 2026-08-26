@@ -43,11 +43,13 @@ type SyncData struct {
 	Status     string          `json:"status"`      // quiz 状态机
 	Question   *QuestionBrief  `json:"question"`    // 当前题目（无答案）
 	DeadlineAt int64           `json:"deadline_at"` // 当前题截止毫秒时间戳（0=无倒计时）
+	RushOpenAt int64           `json:"rush_open_at"` // 抢答窗口开启毫秒（RUSHING 时有效，0=已开启）
 	RushActive  bool            `json:"rush_active"` // 抢答进行中
 	MyRushRank  int             `json:"my_rush_rank"` // 0=未抢 -1=失败 >0=成功名次
 	RushWinners []RushWinner    `json:"rush_winners"` // 当前抢答成功者（进行中/已结束）
 	Me          *MeInfo         `json:"me"`          // 本人信息（用户连接时）
 	Distribution map[string]int `json:"distribution,omitempty"` // 已公布题的答案分布（刷新恢复）
+	AnswerScores map[string]int    `json:"answer_scores,omitempty"` // 各答案实际得分（含抢答扣负分）
 	ServerNow  int64           `json:"server_now"`  // 服务器当前毫秒时间
 }
 
@@ -108,6 +110,7 @@ type RevealData struct {
 	CorrectAns   string         `json:"correct_answer"`
 	Analysis     string         `json:"analysis,omitempty"`
 	Distribution map[string]int `json:"distribution,omitempty"` // 选项分布（管理端用）
+	AnswerScores map[string]int `json:"answer_scores,omitempty"` // 各答案实际得分（含抢答扣负分）
 	Stats        *RevealStats   `json:"stats,omitempty"`
 	// 用户端个人答题反馈（answer:reveal 即时展示用）
 	MyAnswer  string `json:"my_answer,omitempty"`  // 本人提交的（可能为"-"）
@@ -129,6 +132,8 @@ type RankingItem struct {
 	Correct   int    `json:"correct"`
 	Wrong     int    `json:"wrong"`
 	Answered  int    `json:"answered"`
+	RequiredScore int `json:"required_score"` // 必答题得分合计
+	RushScore int    `json:"rush_score"`      // 抢答题得分合计（含抢答奖励/扣分）
 }
 
 type RankingData struct {
@@ -138,6 +143,7 @@ type RankingData struct {
 type RushStartData struct {
 	QuestionID int64 `json:"question_id"`
 	Winners    int   `json:"winners"`     // 名额
+	OpenAt     int64 `json:"open_at"`     // 开抢毫秒时间戳（此前提交一律拒绝）
 	DeadlineAt int64 `json:"deadline_at"` // 抢答截止毫秒
 	ServerNow  int64 `json:"server_now"`
 }
