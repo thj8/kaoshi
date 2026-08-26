@@ -93,6 +93,28 @@ export const adminApi = {
   async statistics(quizId: number) {
     return unwrap<Statistics>(await http.get(`/api/admin/quiz/${quizId}/statistics`, h()))
   },
+  async listUsers(keyword = '') {
+    return unwrap<(AdminUser & { quiz_count?: number })[]>(await http.get(`/api/admin/users?keyword=${encodeURIComponent(keyword)}`, h()))
+  },
+  async listInvitees(quizId: number) {
+    return unwrap<{ items: Invitee[] }>(await http.get(`/api/admin/quiz/${quizId}/invitees`, h()))
+  },
+  async setInvitees(quizId: number, userIds: number[]) {
+    return unwrap<null>(await http.put(`/api/admin/quiz/${quizId}/invitees`, { user_ids: userIds }, h()))
+  },
+}
+
+export interface AdminUser {
+  id: number
+  username: string
+  nickname: string
+  created_at?: string
+}
+
+export interface Invitee {
+  user_id: number
+  username: string
+  nickname: string
 }
 
 export interface Statistics {

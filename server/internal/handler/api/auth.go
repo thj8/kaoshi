@@ -77,14 +77,25 @@ func (h *Handler) Join(c *gin.Context) {
 		fail(c, 404, "答题不存在，请检查链接")
 		return
 	}
-	if quiz.Status == model.QuizStatusFinished {
-		fail(c, 400, "答题已结束")
-		return
+	// 邀请制：名单非空 = 仅名单内用户可加入
+	var invCnt int64
+	h.DB.Model(&model.QuizInvitee{}).Where("quiz_id = ?", quiz.ID).Count(&invCnt)
+	if invCnt > 0 {
+		var me int64
+		h.DB.Model(&model.QuizInvitee{}).Where("quiz_id = ? AND user_id = ?", quiz.ID, claims.UserID).Count(&me)
+		if me == 0 {
+			fail(c, 403, "该比赛未对你开放")
+			return
+		}
 	}
 
-	// 幂等加入
+	// 幂等加入；已结束时仅老参与者可重新领 token 回看成绩
 	var p model.Participant
 	if err := h.DB.Where("quiz_id = ? AND user_id = ?", quiz.ID, claims.UserID).First(&p).Error; err != nil {
+		if quiz.Status == model.QuizStatusFinished {
+			fail(c, 400, "答题已结束")
+			return
+		}
 		p = model.Participant{QuizID: quiz.ID, UserID: claims.UserID, JoinedAt: time.Now()}
 		h.DB.Create(&p)
 	}

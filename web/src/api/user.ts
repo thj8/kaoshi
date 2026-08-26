@@ -34,8 +34,12 @@ export function globalToken(): string {
 }
 
 export const userApi = {
-  async quizList(): Promise<{ items: { id: number; title: string; description: string; mode: string; participant_count: number }[] }> {
+  async quizList(): Promise<{ items: { id: number; title: string; description: string; mode: string; participant_count: number; joined: boolean }[] }> {
     return unwrap(await http.get('/api/quizzes', { headers: { Authorization: `Bearer ${globalToken()}` } }))
+  },
+  /** 我参加过的全部比赛（含已结束） */
+  async myQuizzes(): Promise<{ items: { quiz_id: number; title: string; status: string; mode: string; score: number; correct: number; wrong: number; joined_at: string; participant_count: number }[] }> {
+    return unwrap(await http.get('/api/my/quizzes', { headers: { Authorization: `Bearer ${globalToken()}` } }))
   },
   async login(username: string, password: string) {
     return unwrap<{ token: string; user: AuthUser }>(

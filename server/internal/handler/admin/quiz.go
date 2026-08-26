@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"strconv"
 	"net/http"
 	"time"
 
@@ -422,4 +423,90 @@ func boolOr(v *bool, def bool) bool {
 		return def
 	}
 	return *v
+}
+
+// ---------- 参赛用户（邀请名单） ----------
+
+// ListInvitees GET /api/admin/quiz/:id/invitees
+func (h *Handler) ListInvitees(c *gin.Context) {
+	quizID, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+	var rows []model.QuizInvitee
+	h.DB.Where("quiz_id = ?", quizID).Order("user_id").Find(&rows)
+	ids := make([]int64, 0, len(rows))
+	for _, r := range rows {
+		ids = append(ids, r.UserID)
+	}
+	var users []model.User
+	if len(ids) > 0 {
+		h.DB.Where("id IN ?", ids).Find(&users)
+	}
+	um := map[int64]model.User{}
+	for _, u := range users {
+		um[u.ID] = u
+	}
+	items := make([]gin.H, 0, len(rows))
+	for _, r := range rows {
+		if u, ok := um[r.UserID]; ok {
+			items = append(items, gin.H{"user_id": r.UserID, "username": u.Username, "nickname": u.Nickname})
+		}
+	}
+	c.JSON(200, gin.H{"code": 0, "msg": "ok", "data": gin.H{"items": items}})
+}
+
+type inviteesReq struct {
+	UserIDs []int64 `json:"user_ids" binding:"required"`
+}
+
+// SetInvitees PUT /api/admin/quiz/:id/invitees 全量替换（仅 WAITING）
+func (h *Handler) SetInvitees(c *gin.Context) {
+	quizID, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+	var quiz model.Quiz
+	if err := h.DB.First(&quiz, quizID).Error; err != nil {
+		c.JSON(200, gin.H{"code": 404, "msg": "答题不存在"})
+		return
+	}
+	if quiz.Status != model.QuizStatusWaiting {
+		c.JSON(200, gin.H{"code": 400, "msg": "比赛已开始，不能修改参赛名单"})
+		return
+	}
+	var req inviteesReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(200, gin.H{"code": 400, "msg": "缺少 user_ids"})
+		return
+	}
+	// 去重
+	seen := map[int64]bool{}
+	ids := make([]int64, 0, len(req.UserIDs))
+	for _, id := range req.UserIDs {
+		if id > 0 && !seen[id] {
+			seen[id] = true
+			ids = append(ids, id)
+		}
+	}
+	// 校验全部存在（任一不存在整单拒绝）
+	var n int64
+	h.DB.Model(&model.User{}).Where("id IN ?", ids).Count(&n)
+	if n != int64(len(ids)) {
+		c.JSON(200, gin.H{"code": 400, "msg": "存在无效用户"})
+		return
+	}
+	err := h.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("quiz_id = ?", quizID).Delete(&model.QuizInvitee{}).Error; err != nil {
+			return err
+		}
+		if len(ids) == 0 {
+			return nil
+		}
+		now := time.Now()
+		rows := make([]model.QuizInvitee, len(ids))
+		for i, id := range ids {
+			rows[i] = model.QuizInvitee{QuizID: quizID, UserID: id, CreatedAt: now}
+		}
+		return tx.Create(&rows).Error
+	})
+	if err != nil {
+		c.JSON(200, gin.H{"code": 500, "msg": "保存失败"})
+		return
+	}
+	c.JSON(200, gin.H{"code": 0, "msg": "ok"})
 }

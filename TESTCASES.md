@@ -57,6 +57,19 @@ node scripts/hardening_e2e.mjs   # 抢答并发/越权/防重复/重连（7 项�
 | X2 | 窗口开启中未抢先答被拒 | security_e2e | ✅ |
 | X3 | 普通模式混合题抢答成功 rank=1 | security_e2e | ✅ |
 | X4 | 混合题抢到后可提交 | security_e2e | ✅ |
+| X5 | 名单设置与读取（含去重） | security_e2e | ✅ |
+| X6 | 受邀者可加入 | security_e2e | ✅ |
+| X7 | 未受邀者被拒(403)/brief公开 | security_e2e | ✅ |
+| X8 | 受限赛对未受邀者不可见 | security_e2e | ✅ |
+| X9 | 空名单开放可加入 | security_e2e | ✅ |
+| X10 | RUNNING 改名单被拒 | security_e2e | ✅ |
+| X11 | 不存在用户整单拒绝 | security_e2e | ✅ |
+| X12 | 用户调名单接口被拒 | security_e2e | ✅ |
+| X13 | 已加入标记 joined=true | security_e2e | ✅ |
+| X14 | 我的比赛含进行中（+分数实时） | security_e2e | ✅ |
+| X15 | 已结束在我的列表+分数 | security_e2e | ✅ |
+| X16 | 参与者可重入/未参与者不可 | security_e2e | ✅ |
+| X17 | 无 token 访问我的比赛被拒 | security_e2e | ✅ |
 
 ## 用例详细说明
 
@@ -78,6 +91,12 @@ node scripts/hardening_e2e.mjs   # 抢答并发/越权/防重复/重连（7 项�
 - **X2 窗口开启中未抢先答被拒**：rush/start 后未抢答者提交被拒。
 - **X3 混合题抢答成功**：normal 模式下抢答返回 rank=1。
 - **X4 混合题抢到后可提交**：rush/end 后持有 RushRecord 者提交成功。
+- **X5-X17 邀请制 + 我的比赛**（quiz_invitees，TDD 先行）：
+  名单非空=仅名单内用户可加入（join 403、`/api/quizzes` 不可见），为空=开放（回归）；
+  仅 WAITING 可 PUT 名单，含不存在 user_id 整单拒绝，用户 token 调名单接口 401；
+  `/api/quizzes` 带 `joined` 标记；`/api/my/quizzes` 含进行中（分数实时）与已结束
+  （分数准确、未参加者不可见）；已结束比赛老参与者可重新 join 拿 token 回看成绩，
+  未参与者被拒；无 token 访问 my 接口 401。
 
 ### 答案回显（B 系列）—— scripts/security_e2e.mjs
 
