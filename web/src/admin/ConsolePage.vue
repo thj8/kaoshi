@@ -59,13 +59,40 @@
             </div>
           </div>
 
+          <!-- 必答题统计条（大屏投影） -->
+          <div v-if="curQuestion?.required && rushWinners.length === 0" class="rush-result">
+            <div class="rr-hero">
+              <span class="rr-bolt">📝</span>
+              <div class="rr-hero-text">
+                <b>第 {{ curIndex + 1 }} 题 · 必答题</b>
+                <small>共 {{ stats.participants }} 人</small>
+              </div>
+            </div>
+            <div class="rr-sec">
+              <small>已答</small>
+              <b class="rr-ans">{{ stats.answered }}人</b>
+            </div>
+            <div class="rr-sec">
+              <small>答对</small>
+              <b class="rr-ans ok">{{ stats.correct }}人</b>
+            </div>
+            <div class="rr-sec">
+              <small>答错</small>
+              <b class="rr-ans no">{{ stats.wrong }}人</b>
+            </div>
+            <div v-if="revealed" class="rr-sec">
+              <small>正确答案</small>
+              <b class="rr-ans ok">{{ curQuestion.answer }}</b>
+            </div>
+          </div>
+
           <!-- 抢答结果条（大屏投影） -->
           <div v-if="rushWinners.length > 0" class="rush-result">
             <div class="rr-hero">
               <span class="rr-bolt">⚡</span>
               <div class="rr-hero-text">
                 <b>{{ rushWinners.map((w) => w.nickname).join('、') }}</b>
-                <small>抢到了 · 抢答奖励 +{{ rushWinners[0].bonus }}分</small>
+                <small>抢到了</small>
               </div>
             </div>
             <div class="rr-sec">
@@ -78,7 +105,7 @@
             </div>
             <div v-if="revealed" class="rr-sec">
               <small>答题得分</small>
-              <b class="rr-ans" :class="winnerCorrect ? 'ok' : 'no'">{{ winnerCorrect ? '+' + curQuestion.score : '未得分' }}</b>
+              <b class="rr-ans" :class="winnerCorrect ? 'ok' : 'no'">{{ winnerCorrect ? '+' + curQuestion.score + '分' : '0分' }}</b>
             </div>
           </div>
         </template>
@@ -93,10 +120,9 @@
       <button v-if="status === 'PAUSED'" class="btn btn-primary big" @click="ctrl('resume')">▶ 继续</button>
       <button v-if="canRush" class="btn big" style="background: linear-gradient(135deg, #ff7062, #e0404f)" @click="ctrl('rush/start')">⚡ 开始抢答</button>
       <button v-if="status === 'RUSHING'" class="btn btn-ghost" style="color: var(--warn)" @click="ctrl('rush/end')">■ 结束抢答</button>
+      <button v-if="curQuestion?.required && status === 'ANSWERING'" class="btn btn-ghost" style="color: var(--success)" @click="ctrl('reveal')">📢 显示答案</button>
       <button v-if="status === 'ANSWERING' || status === 'REVEALING'" class="btn btn-ghost" style="color: var(--warn)" @click="ctrl('pause')">⏸ 暂停</button>
-      <button v-if="canReveal" class="btn btn-ghost" style="color: var(--success)" @click="ctrl('reveal')">📢 公布答案</button>
       <button v-if="status !== 'WAITING' && status !== 'FINISHED'" class="btn btn-primary big" @click="ctrl('next')">下一题 →</button>
-      <button v-if="status !== 'WAITING' && status !== 'FINISHED'" class="btn btn-danger" @click="ctrl('end')">■ 结束答题</button>
       <button v-if="status !== 'WAITING'" class="btn btn-danger" @click="ctrl('reset')" title="清空答题/抢答记录与成绩，活动回到未开始">↺ 重置比赛</button>
       <span v-if="status === 'FINISHED'" class="text-dim" style="padding: 10px">答题已结束</span>
     </div>
@@ -133,7 +159,6 @@ let ws: QuizWS | null = null
 let tickTimer: number | null = null
 
 const remainSec = computed(() => Math.ceil(remainMs.value / 1000))
-const canReveal = computed(() => curIndex.value >= 0 && (status.value === 'ANSWERING' || status.value === 'REVEALING'))
 const rushWinners = ref<Array<{ user_id: number; nickname: string; rank: number; bonus: number }>>([])
 const canRush = computed(
   () =>
@@ -196,6 +221,12 @@ function handleEvent(msg: WSMessage) {
     case Ev.Sync:
       status.value = d.status || 'WAITING'
       rushWinners.value = d.rush_winners || []
+      stats.participants = d.quiz?.participant_count ?? stats.participants
+      // 刷新恢复：公布阶段带回答案分布与已公布标记
+      if (d.status === 'REVEALING') {
+        revealed.value = true
+        if (d.distribution) distribution.value = d.distribution
+      }
       if (d.question) {
         applyQuestion(d.question, d.deadline_at || 0)
       }
@@ -270,7 +301,6 @@ function applyQuestion(q: any, deadline: number) {
 }
 
 async function ctrl(action: string) {
-  if (action === 'end' && !confirm('确定结束答题？将生成最终成绩与排行榜')) return
   if (action === 'reset' && !confirm('确定重置？将清空所有答题/抢答记录与成绩，比赛回到未开始状态（题目和已加入的选手保留）')) return
   try {
     await fetch(`/api/admin/quiz/${quizId}/${action}`, {

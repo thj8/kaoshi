@@ -160,6 +160,13 @@ func (e *Engine) Reveal(quizID int64) error {
 	if rt.curIndex < 0 || rt.curIndex >= len(rt.questions) {
 		return ErrNotRunning
 	}
+	return e.revealLocked(quizID, rt)
+}
+
+func (e *Engine) revealLocked(quizID int64, rt *Runtime) error {
+	if rt.curIndex < 0 || rt.curIndex >= len(rt.questions) {
+		return ErrNotRunning
+	}
 	if rt.quiz.Status == model.QuizStatusRushing {
 		if err := e.rushEndLocked(rt); err != nil {
 			return err
@@ -484,10 +491,17 @@ func (e *Engine) SubmitAnswer(quizID, questionID, userID int64, answer string, d
 	if earn <= 0 {
 		earn = q.Score
 	}
-	// 计分唯一口径：答对得本题分值（按题型配置），答错 0 分；无抢答奖励、无答错倒扣
+	// 计分：答对得本题分值（按题型配置）；抢答题答错倒扣（题型配置优先，未配置时
+	// 需 rush_wrong_score>0 开启总开关，扣本题分值）；必答题答错 0 分；无抢答奖励分
 	score := 0
 	if isCorrect {
 		score = earn
+	} else if isRush {
+		if d := rt.quiz.RushDeduct(q.Type); d > 0 {
+			score = -d
+		} else if rt.quiz.RushWrongScore > 0 {
+			score = -earn
+		}
 	}
 
 	rec := model.Answer{
@@ -532,6 +546,17 @@ func (e *Engine) SubmitAnswer(quizID, questionID, userID int64, answer string, d
 	e.broadcastStatistics(quizID, questionID)
 	if rt.quiz.ShowRanking {
 		e.Hub.Broadcast(quizID, ws.EventRankingUpdate, &ws.RankingData{Items: e.buildRanking(quizID, 50)})
+	}
+	// 抢答题：所有抢到者提交后自动公布答案（管理员无需手动点公布）
+	if isRush {
+		var winners, done int64
+		e.DB.Model(&model.RushRecord{}).Where("quiz_id = ? AND question_id = ?", quizID, questionID).Count(&winners)
+		e.DB.Model(&model.Answer{}).Where("quiz_id = ? AND question_id = ? AND answer != ?", quizID, questionID, AnswerUnanswered).Count(&done)
+		if winners > 0 && done >= winners {
+			if err := e.revealLocked(quizID, rt); err != nil {
+				return result, err
+			}
+		}
 	}
 	return result, nil
 }

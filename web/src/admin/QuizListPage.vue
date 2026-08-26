@@ -105,6 +105,13 @@
             <input v-model.number="form.rush_score_judge" class="input" type="number" min="0" placeholder="判断" style="width:70px" />
           </span>
         </div>
+        <div class="frow"><label>抢答答错扣分（0=不扣）</label>
+          <span style="display:flex;gap:6px">
+            <input v-model.number="form.rush_deduct_single" class="input" type="number" min="0" placeholder="单选" style="width:70px" />
+            <input v-model.number="form.rush_deduct_multiple" class="input" type="number" min="0" placeholder="多选" style="width:70px" />
+            <input v-model.number="form.rush_deduct_judge" class="input" type="number" min="0" placeholder="判断" style="width:70px" />
+          </span>
+        </div>
             </div>
           </template>
           <p v-if="err" style="color: var(--danger); font-size: 14px">{{ err }}</p>

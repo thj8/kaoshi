@@ -97,7 +97,7 @@ function connect(token, onMsg) {
   await j('POST', `/api/admin/quiz/${quizN.id}/reset`, {}, at) // 恢复 WAITING 供后续用例
 
   // ---------- 1b. 普通模式混合题：抢答题在抢答前不可直接作答（防绕过抢答） ----------
-  const quizX = (await mkQ('sec-mixed', 'normal', { rush_enabled: true, rush_time: 15, rush_answer_time: 20 })).data
+  const quizX = (await mkQ('sec-mixed', 'normal', { rush_enabled: true, rush_time: 15, rush_answer_time: 20, rush_deduct_single: 4 })).data
   const qX = (await mkQs(quizX.id, { type: 'single', content: '混合抢答题?', answer: 'B', score: 10, required: false, time_limit: 20, options: opts(['A', 'B']) })).data
   const qX2 = (await mkQs(quizX.id, { type: 'single', content: '混合抢答题2?', answer: 'A', score: 10, required: false, time_limit: 20, options: opts(['A', 'B']) })).data
   const jX_a = (await j('POST', '/api/join', { quiz_id: quizX.id }, alice.token)).data
@@ -122,7 +122,7 @@ function connect(token, onMsg) {
   await j('POST', `/api/question/${qX2.id}/rush`, {}, jX_a.token)
   await j('POST', `/api/admin/quiz/${quizX.id}/rush/end`, {}, at); await sleep(300)
   const xWrong = await j('POST', `/api/question/${qX2.id}/answer`, { answer: 'B', duration: 100 }, jX_a.token)
-  check('S2 抢答答错 0 分不倒扣', xWrong.code === 0 && xWrong.data?.score === 0 && xWrong.data?.total_score === 10, `score=${xWrong.data?.score} total=${xWrong.data?.total_score}`)
+  check('S2 抢答答错按题型扣分(-4)', xWrong.code === 0 && xWrong.data?.score === -4 && xWrong.data?.total_score === 6, `score=${xWrong.data?.score} total=${xWrong.data?.total_score}`)
 
   // ---------- 2. 抢答权限（问题1） ----------
   await j('POST', `/api/admin/quiz/${quizR.id}/start`, {}, at)

@@ -289,7 +289,11 @@ func (e *Engine) rushWinnersFromDB(quizID, questionID int64) []ws.RushWinner {
 	}
 	out := make([]ws.RushWinner, len(recs))
 	for i, r := range recs {
-		out[i] = ws.RushWinner{UserID: r.UserID, Nickname: nick[r.UserID], Rank: r.Rank, Bonus: r.Score}
+		nick2 := nick[r.UserID]
+		if nick2 == "" {
+			nick2 = "已退出用户"
+		}
+		out[i] = ws.RushWinner{UserID: r.UserID, Nickname: nick2, Rank: r.Rank, Bonus: r.Score}
 	}
 	return out
 }

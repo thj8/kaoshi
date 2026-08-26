@@ -26,6 +26,7 @@ export class QuizWS {
   private heartbeatTimer: number | null = null
   private reconnectTimer: number | null = null
   private closedByUser = false
+  private lastAlive = Date.now()
 
   constructor(opts: WSOptions) {
     this.opts = opts
@@ -44,6 +45,7 @@ export class QuizWS {
     }
 
     ws.onmessage = (ev) => {
+      this.lastAlive = Date.now() // 任何消息都算存活（pong/广播均可）
       try {
         const msg = JSON.parse(ev.data)
         if (msg && typeof msg.event === 'string') {
@@ -80,6 +82,11 @@ export class QuizWS {
     this.stopHeartbeat()
     this.heartbeatTimer = window.setInterval(() => {
       this.send('ping')
+      // 半死连接检测：超过 45s 没收到任何消息，强制断开触发重连
+      // （重连后服务端会重新下发 sync，页面状态自动恢复）
+      if (Date.now() - this.lastAlive > 45000) {
+        this.ws?.close()
+      }
     }, 20000)
   }
 

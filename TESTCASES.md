@@ -45,7 +45,7 @@ node scripts/hardening_e2e.mjs   # 抢答并发/越权/防重复/重连（7 项�
 | H9 | 实时统计：正确/错误不含未答（1/1） | hardening_e2e | ✅ |
 | H10 | 实时统计：正确率分母为真实作答（50%） | hardening_e2e | ✅ |
 | S1 | 抢答答对=题目分值，无奖励分 | security_e2e | ✅ |
-| S2 | 抢答答错 0 分不倒扣 | security_e2e | ✅ |
+| S2 | 抢答答错按题型扣分（-4） | security_e2e | ✅ |
 | S3 | 必答答对按题目分值、答错 0 分 | hardening_e2e | ✅ |
 | S4 | rush 模式答对=题目分值无奖励 | security_e2e | ✅ |
 | T1 | 即时 total_score 跨题累计 | hardening_e2e | ✅ |
@@ -128,13 +128,14 @@ node scripts/hardening_e2e.mjs   # 抢答并发/越权/防重复/重连（7 项�
 
 ### 计分口径（S 系列）
 
-> 唯一计分口径：答对得本题分值（quiz 按题型配置优先，0=沿用题目自带分值），
-> 答错一律 0 分；抢答无奖励分、无答错倒扣（已下线，配置字段忽略）。
+> 计分口径：答对得本题分值（quiz 按题型配置优先，0=沿用题目自带分值）；
+> 必答题答错 0 分；**抢答题答错倒扣**——按题型扣分配置（RushDeduct，0=未配置），
+> 未配置时需 `rush_wrong_score>0` 总开关，扣本题分值；抢答成功本身无奖励分。
 
 - **S1 抢答答对=本题分值，无奖励分**：security_e2e A 场景，题目 10 分、quiz 配置
   `rush_bonus_score=5`，抢到后答对 → `score=10, total=10`（不含 +5 奖励）。
-- **S2 抢答答错 0 分不倒扣**：同场景第二题抢到后答错 → `score=0`，总分不降
-  （即使配置 `rush_wrong_score>0` / 题型扣分也不生效）。
+- **S2 抢答答错按题型扣分**：quizX 配置 `rush_deduct_single=4`，第二题抢到后
+  答错 → `score=-4, total=6`（首题答对 +10）。
 - **S3 必答答对按题目分值、答错 0 分**：hardening_e2e 统计场景，答对者 +10、
   答错者 +0（超时未答同样 +0）。
 - **S4 抢到的答对=题目分值无奖励（quizR）**：rush 模式复验，`score=10, total=10`。
