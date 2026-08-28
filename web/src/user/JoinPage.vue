@@ -59,7 +59,7 @@
               <div class="row-meta">
                 <span class="m-item">{{ q.code }}</span>
                 <span class="dot"></span>
-                <span>{{ q.mode === 'rush' ? '抢答模式' : '普通模式' }}</span>
+                <span>{{ modeText(q.mode) }}</span>
                 <span class="dot"></span>
                 <span>{{ q.participant_count }} 人已加入</span>
               </div>
@@ -67,10 +67,11 @@
             <span class="chev">›</span>
           </div>
         </template>
-        <div v-else class="card empty-card">
+        <div v-else-if="!mine.length" class="card empty-card">
           <p>暂无可加入的答题活动</p>
           <p class="empty-sub">请等待管理员创建并开启</p>
         </div>
+        <p v-else class="empty">暂无可加入的新活动</p>
       </template>
     </template>
   </div>
@@ -96,6 +97,7 @@ const STATUS: Record<string, string> = {
   ANSWERING: '答题中', REVEALING: '公布中', FINISHED: '已结束',
 }
 const statusText = (st: string) => STATUS[st] || st
+const modeText = (m: string) => (m === 'rush' ? '抢答模式' : m === 'exam' ? '考试模式' : '普通模式')
 
 /** 已结束 → 回看成绩/排行；进行中 → 回到答题页（考试模式走 /exam） */
 function examPath(m: { code: string; mode?: string; status: string }): string | null {
@@ -105,6 +107,8 @@ function examPath(m: { code: string; mode?: string; status: string }): string | 
 async function goMine(m: { code: string; mode?: string; status: string }) {
   joining.value = true
   err.value = ''
+  // 先同步开新 tab（在点击手势内，避免 await 后被浏览器拦截），加入完成后再导航
+  const win = window.open('about:blank')
   try {
     // 已结束且无 token：重新 join 换 token（老参与者可换）再看成绩
     if (!localStorage.getItem(LS.userToken(m.code))) {
@@ -114,14 +118,14 @@ async function goMine(m: { code: string; mode?: string; status: string }) {
       localStorage.setItem(LS.nickname(quiz.code), user.nickname)
     }
     const exam = examPath({ code: m.code, mode: m.mode, status: m.status })
-    if (exam) {
-      router.replace(exam)
-      return
-    }
-    router.replace(m.status === 'FINISHED' ? `/rank/${m.code}` : `/quiz/${m.code}`)
+    const path = exam ?? (m.status === 'FINISHED' ? `/rank/${m.code}` : `/quiz/${m.code}`)
+    if (win) win.location.href = path
+    else router.replace(path) // 弹窗被拦截时兜底当前页
   } catch (e: any) {
-    joining.value = false
+    win?.close()
     err.value = e?.response?.data?.msg || '进入失败'
+  } finally {
+    joining.value = false
   }
 }
 const linkBrief = ref<{ id: number; code: string; title: string; description: string } | null>(null)
@@ -142,7 +146,7 @@ onMounted(async () => {
     // 深链：展示该活动并自动进入
     try {
       linkBrief.value = await userApi.quizBrief(linkQuizId.value)
-      go(linkQuizId.value)
+      go(linkQuizId.value, false) // 非点击手势触发，自动进入仅当前页（新开会被拦截）
     } catch {
       err.value = '答题活动不存在'
     }
@@ -168,26 +172,33 @@ function logout() {
   router.replace('/login')
 }
 
-async function go(quizId: string) {
+async function go(quizId: string, newTab = true) {
   if (!quizId) return
   joining.value = true
   err.value = ''
+  // 先同步开新 tab（在点击手势内，避免 await 后被浏览器拦截），加入完成后再导航
+  const win = newTab ? window.open('about:blank') : null
   try {
+    let path: string
     // 已有答题 token 直接进（brief 补查模式，考试走 /exam）
     if (localStorage.getItem(LS.userToken(quizId))) {
       const brief = await userApi.quizBrief(quizId).catch(() => null)
-      router.replace(brief?.mode === 'exam' ? `/exam/${quizId}` : `/quiz/${quizId}`)
-      return
+      path = brief?.mode === 'exam' ? `/exam/${quizId}` : `/quiz/${quizId}`
+    } else {
+      // 加入换取答题 token
+      const { token, quiz, user } = await userApi.joinQuiz(quizId)
+      localStorage.setItem(LS.userToken(quiz.code), token)
+      localStorage.setItem(LS.userId(quiz.code), String(user.id))
+      localStorage.setItem(LS.nickname(quiz.code), user.nickname)
+      path = quiz.mode === 'exam' ? `/exam/${quiz.code}` : `/quiz/${quiz.code}`
     }
-    // 加入换取答题 token
-    const { token, quiz, user } = await userApi.joinQuiz(quizId)
-    localStorage.setItem(LS.userToken(quiz.code), token)
-    localStorage.setItem(LS.userId(quiz.code), String(user.id))
-    localStorage.setItem(LS.nickname(quiz.code), user.nickname)
-    router.replace(quiz.mode === 'exam' ? `/exam/${quiz.code}` : `/quiz/${quiz.code}`)
+    if (win) win.location.href = path
+    else router.replace(path) // 弹窗被拦截或非点击手势时兜底当前页
   } catch (e: any) {
-    joining.value = false
+    win?.close()
     err.value = e?.response?.data?.msg || '加入失败'
+  } finally {
+    joining.value = false
   }
 }
 </script>
