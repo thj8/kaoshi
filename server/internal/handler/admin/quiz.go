@@ -2,7 +2,6 @@ package admin
 
 import (
 	"kaoshi/internal/engine"
-	"strconv"
 	"net/http"
 	"time"
 
@@ -131,16 +130,22 @@ func (h *Handler) CreateQuiz(c *gin.Context) {
 		RushDeductMultiple: req.RushDeductMultiple,
 		RushDeductJudge:    req.RushDeductJudge,
 	}
+	quiz.Code = model.NewQuizCode()
 	if err := h.DB.Create(&quiz).Error; err != nil {
-		fail(c, 500, "保存失败")
-		return
+		// code 撞唯一索引极小概率，重试一次
+		quiz.ID = 0
+		quiz.Code = model.NewQuizCode()
+		if err := h.DB.Create(&quiz).Error; err != nil {
+			fail(c, 500, "保存失败")
+			return
+		}
 	}
 	ok(c, quiz)
 }
 
 func (h *Handler) UpdateQuiz(c *gin.Context) {
 	var quiz model.Quiz
-	if err := h.DB.First(&quiz, c.Param("id")).Error; err != nil {
+	if err := h.DB.Where("code = ?", c.Param("id")).First(&quiz).Error; err != nil {
 		fail(c, 404, "答题不存在")
 		return
 	}
@@ -191,7 +196,7 @@ func (h *Handler) GetQuiz(c *gin.Context) {
 	var quiz model.Quiz
 	if err := h.DB.Preload("Questions", func(db *gorm.DB) *gorm.DB {
 		return db.Order("sort ASC")
-	}).First(&quiz, c.Param("id")).Error; err != nil {
+	}).Where("code = ?", c.Param("id")).First(&quiz).Error; err != nil {
 		fail(c, 404, "答题不存在")
 		return
 	}
@@ -200,7 +205,7 @@ func (h *Handler) GetQuiz(c *gin.Context) {
 
 func (h *Handler) DeleteQuiz(c *gin.Context) {
 	var quiz model.Quiz
-	if err := h.DB.First(&quiz, c.Param("id")).Error; err != nil {
+	if err := h.DB.Where("code = ?", c.Param("id")).First(&quiz).Error; err != nil {
 		fail(c, 404, "答题不存在")
 		return
 	}
@@ -293,9 +298,8 @@ func buildOptions(q *model.Question, req *questionReq) []model.QuestionOption {
 }
 
 func (h *Handler) CreateQuestion(c *gin.Context) {
-	quizID := c.Param("id")
 	var quiz model.Quiz
-	if err := h.DB.First(&quiz, quizID).Error; err != nil {
+	if err := h.DB.Where("code = ?", c.Param("id")).First(&quiz).Error; err != nil {
 		fail(c, 404, "答题不存在")
 		return
 	}
@@ -337,9 +341,13 @@ func (h *Handler) CreateQuestion(c *gin.Context) {
 }
 
 func (h *Handler) ListQuestions(c *gin.Context) {
-	quizID := c.Param("id")
+	var quiz model.Quiz
+	if err := h.DB.Where("code = ?", c.Param("id")).First(&quiz).Error; err != nil {
+		fail(c, 404, "答题不存在")
+		return
+	}
 	var questions []model.Question
-	h.DB.Where("quiz_id = ?", quizID).Order("sort ASC").Find(&questions)
+	h.DB.Where("quiz_id = ?", quiz.ID).Order("sort ASC").Find(&questions)
 	if len(questions) == 0 {
 		ok(c, []any{})
 		return
@@ -444,7 +452,12 @@ func boolOr(v *bool, def bool) bool {
 
 // ListInvitees GET /api/admin/quiz/:id/invitees
 func (h *Handler) ListInvitees(c *gin.Context) {
-	quizID, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+	var quiz model.Quiz
+	if err := h.DB.Where("code = ?", c.Param("id")).First(&quiz).Error; err != nil {
+		c.JSON(200, gin.H{"code": 404, "msg": "答题不存在"})
+		return
+	}
+	quizID := quiz.ID
 	var rows []model.QuizInvitee
 	h.DB.Where("quiz_id = ?", quizID).Order("user_id").Find(&rows)
 	ids := make([]int64, 0, len(rows))
@@ -474,12 +487,12 @@ type inviteesReq struct {
 
 // SetInvitees PUT /api/admin/quiz/:id/invitees 全量替换（仅 WAITING）
 func (h *Handler) SetInvitees(c *gin.Context) {
-	quizID, _ := strconv.ParseInt(c.Param("id"), 10, 64)
 	var quiz model.Quiz
-	if err := h.DB.First(&quiz, quizID).Error; err != nil {
+	if err := h.DB.Where("code = ?", c.Param("id")).First(&quiz).Error; err != nil {
 		c.JSON(200, gin.H{"code": 404, "msg": "答题不存在"})
 		return
 	}
+	quizID := quiz.ID
 	if quiz.Status != model.QuizStatusWaiting {
 		c.JSON(200, gin.H{"code": 400, "msg": "比赛已开始，不能修改参赛名单"})
 		return

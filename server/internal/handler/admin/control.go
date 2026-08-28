@@ -28,22 +28,22 @@ func (h *ControlHandler) wrap(c *gin.Context, fn func() error) {
 	c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "ok", "data": nil})
 }
 
-func (h *ControlHandler) Start(c *gin.Context)    { h.wrap(c, func() error { return h.Eng.Start(id(c)) }) }
-func (h *ControlHandler) Pause(c *gin.Context)    { h.wrap(c, func() error { return h.Eng.Pause(id(c)) }) }
-func (h *ControlHandler) Resume(c *gin.Context)   { h.wrap(c, func() error { return h.Eng.Resume(id(c)) }) }
-func (h *ControlHandler) Next(c *gin.Context)     { h.wrap(c, func() error { return h.Eng.Next(id(c)) }) }
-func (h *ControlHandler) Previous(c *gin.Context) { h.wrap(c, func() error { return h.Eng.Previous(id(c)) }) }
-func (h *ControlHandler) Reveal(c *gin.Context)   { h.wrap(c, func() error { return h.Eng.Reveal(id(c)) }) }
+func (h *ControlHandler) Start(c *gin.Context)    { h.wrap(c, func() error { return h.Eng.Start(h.id(c)) }) }
+func (h *ControlHandler) Pause(c *gin.Context)    { h.wrap(c, func() error { return h.Eng.Pause(h.id(c)) }) }
+func (h *ControlHandler) Resume(c *gin.Context)   { h.wrap(c, func() error { return h.Eng.Resume(h.id(c)) }) }
+func (h *ControlHandler) Next(c *gin.Context)     { h.wrap(c, func() error { return h.Eng.Next(h.id(c)) }) }
+func (h *ControlHandler) Previous(c *gin.Context) { h.wrap(c, func() error { return h.Eng.Previous(h.id(c)) }) }
+func (h *ControlHandler) Reveal(c *gin.Context)   { h.wrap(c, func() error { return h.Eng.Reveal(h.id(c)) }) }
 func (h *ControlHandler) End(c *gin.Context) {
-	h.wrap(c, func() error { return h.Eng.End(id(c)) })
+	h.wrap(c, func() error { return h.Eng.End(h.id(c)) })
 }
-func (h *ControlHandler) RushStart(c *gin.Context) { h.wrap(c, func() error { return h.Eng.RushStart(id(c)) }) }
-func (h *ControlHandler) RushEnd(c *gin.Context)   { h.wrap(c, func() error { return h.Eng.RushEnd(id(c)) }) }
-func (h *ControlHandler) Reset(c *gin.Context)    { h.wrap(c, func() error { return h.Eng.Reset(id(c)) }) }
+func (h *ControlHandler) RushStart(c *gin.Context) { h.wrap(c, func() error { return h.Eng.RushStart(h.id(c)) }) }
+func (h *ControlHandler) RushEnd(c *gin.Context)   { h.wrap(c, func() error { return h.Eng.RushEnd(h.id(c)) }) }
+func (h *ControlHandler) Reset(c *gin.Context)    { h.wrap(c, func() error { return h.Eng.Reset(h.id(c)) }) }
 
 // Statistics GET /api/admin/quiz/:id/statistics 实时+最终统计
 func (h *ControlHandler) Statistics(c *gin.Context) {
-	quizID := id(c)
+	quizID := h.id(c)
 	var quiz model.Quiz
 	if err := h.DB.First(&quiz, quizID).Error; err != nil {
 		c.JSON(http.StatusOK, gin.H{"code": 404, "msg": "答题不存在"})
@@ -53,9 +53,13 @@ func (h *ControlHandler) Statistics(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "ok", "data": stats})
 }
 
-func id(c *gin.Context) int64 {
-	n, _ := parseInt64(c.Param("id"))
-	return n
+// id 路径参数为 10 位随机码，解析为内部 quizID（不存在返回 0）
+func (h *ControlHandler) id(c *gin.Context) int64 {
+	var q model.Quiz
+	if h.DB.Where("code = ?", c.Param("id")).First(&q).Error != nil {
+		return 0
+	}
+	return q.ID
 }
 
 func parseInt64(s string) (int64, bool) {

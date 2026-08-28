@@ -56,18 +56,18 @@ const PLANS = [
     mode: 'normal', per_question_time: 30, total_time: 0,
     show_answer: true, show_analysis: true, show_ranking: true,
   }, at))
-  for (const q of QS) await j('POST', `/api/admin/quiz/${quiz.id}/questions`, q, at)
-  console.log('＋ 活动: 安全知识理论竞赛（演示' + sfx + '） #' + quiz.id)
+  for (const q of QS) await j('POST', `/api/admin/quiz/${quiz.code}/questions`, q, at)
+  console.log('＋ 活动: 安全知识理论竞赛（演示' + sfx + '） #' + quiz.code)
 
   // 3. 加入 + 作答（走完整业务流，产生真实成绩/排行榜）
-  await j('POST', `/api/admin/quiz/${quiz.id}/start`, null, at)
-  const qList = await j('GET', `/api/admin/quiz/${quiz.id}/questions`, null, at)
+  await j('POST', `/api/admin/quiz/${quiz.code}/start`, null, at)
+  const qList = await j('GET', `/api/admin/quiz/${quiz.code}/questions`, null, at)
   // 所有用户加入
   const tokens = []
   for (const plan of PLANS) {
     const u = USERS.find(x => x.nickname === plan.nickname)
     const login = (await j('POST', '/api/auth/login', { username: u.username, password: PASSWORD })).token
-    const { token } = await j('POST', '/api/join', { quiz_id: quiz.id }, login)
+    const { token } = await j('POST', '/api/join', { quiz_id: quiz.code }, login)
     tokens.push({ nickname: plan.nickname, token })
   }
   // 按题推进：全员作答 → 公布 → 下一题
@@ -77,10 +77,10 @@ const PLANS = [
       if (!ans) continue
       await j('POST', `/api/question/${qList[i].id}/answer`, { answer: ans, duration: 3000 + i * 1500 }, t.token)
     }
-    await j('POST', `/api/admin/quiz/${quiz.id}/reveal`, null, at).catch(() => {})
-    await j('POST', `/api/admin/quiz/${quiz.id}/next`, null, at).catch(() => {})
+    await j('POST', `/api/admin/quiz/${quiz.code}/reveal`, null, at).catch(() => {})
+    await j('POST', `/api/admin/quiz/${quiz.code}/next`, null, at).catch(() => {})
     console.log('＋ 第', i + 1, '题作答完成')
   }
-  await j('POST', `/api/admin/quiz/${quiz.id}/end`, null, at).catch(() => {})
+  await j('POST', `/api/admin/quiz/${quiz.code}/end`, null, at).catch(() => {})
   console.log('✅ 种子数据完成：5 名用户 · 1 场已完结竞赛（含成绩与排行榜）')
 })().catch(e => { console.error('❌', e.message); process.exit(1) })

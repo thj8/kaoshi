@@ -2,14 +2,24 @@ package api
 
 import (
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 
 	"kaoshi/internal/auth"
 	"kaoshi/internal/model"
 )
 
+// quizByCode 对外 code 寻址（自增 id 不再对外服务任何接口）
+func quizByCode(db *gorm.DB, code string) (*model.Quiz, bool) {
+	var q model.Quiz
+	if err := db.Where("code = ?", code).First(&q).Error; err != nil {
+		return nil, false
+	}
+	return &q, true
+}
+
 func quizBriefOf(q *model.Quiz) gin.H {
 	return gin.H{
-		"id": q.ID, "title": q.Title, "description": q.Description,
+		"id": q.ID, "code": q.Code, "title": q.Title, "description": q.Description,
 		"status": q.Status, "mode": q.Mode,
 		"show_answer": q.ShowAnswer, "show_analysis": q.ShowAnalysis, "show_ranking": q.ShowRanking,
 	}
@@ -18,7 +28,7 @@ func quizBriefOf(q *model.Quiz) gin.H {
 // QuizBrief GET /api/quiz/:id/brief 公开信息（加入页展示，无需登录；不含任何答案信息）
 func (h *Handler) QuizBrief(c *gin.Context) {
 	var quiz model.Quiz
-	if err := h.DB.First(&quiz, c.Param("id")).Error; err != nil {
+	if err := h.DB.Where("code = ?", c.Param("id")).First(&quiz).Error; err != nil {
 		fail(c, 404, "答题不存在")
 		return
 	}
@@ -26,7 +36,7 @@ func (h *Handler) QuizBrief(c *gin.Context) {
 	h.DB.Model(&model.Participant{}).Where("quiz_id = ?", quiz.ID).Count(&count)
 	ok(c, gin.H{
 		"id":                quiz.ID,
-		"title":             quiz.Title,
+		"code":             quiz.Code,
 		"description":       quiz.Description,
 		"status":            quiz.Status,
 		"participant_count": count,
@@ -53,7 +63,7 @@ func (h *Handler) QuizList(c *gin.Context) {
 		h.DB.Model(&model.Participant{}).Where("quiz_id = ?", q.ID).Count(&cnt)
 		h.DB.Model(&model.Participant{}).Where("quiz_id = ? AND user_id = ?", q.ID, claims.UserID).Count(&joined)
 		items = append(items, gin.H{
-			"id": q.ID, "title": q.Title, "description": q.Description,
+		"id": q.ID, "code": q.Code, "title": q.Title, "description": q.Description,
 			"mode": q.Mode, "participant_count": cnt,
 			"joined": joined > 0,
 		})
@@ -69,9 +79,10 @@ func (h *Handler) MyQuizzes(c *gin.Context) {
 		Title  string
 		Status string
 		Mode   string
+		Code   string
 	}{}
 	h.DB.Table("participants").
-		Select("participants.*, quizzes.title AS title, quizzes.status AS status, quizzes.mode AS mode").
+		Select("participants.*, quizzes.title AS title, quizzes.status AS status, quizzes.mode AS mode, quizzes.code AS code").
 		Joins("JOIN quizzes ON quizzes.id = participants.quiz_id").
 		Where("participants.user_id = ?", claims.UserID).
 		Order("quizzes.status = 'FINISHED', quizzes.id DESC").
@@ -81,7 +92,7 @@ func (h *Handler) MyQuizzes(c *gin.Context) {
 		var cnt int64
 		h.DB.Model(&model.Participant{}).Where("quiz_id = ?", r.QuizID).Count(&cnt)
 		items = append(items, gin.H{
-			"quiz_id": r.QuizID, "title": r.Title, "status": r.Status, "mode": r.Mode,
+			"quiz_id": r.QuizID, "code": r.Code, "title": r.Title, "status": r.Status, "mode": r.Mode,
 			"score": r.Score, "correct": r.CorrectCount, "wrong": r.WrongCount,
 			"joined_at": r.JoinedAt, "participant_count": cnt,
 		})
@@ -93,7 +104,7 @@ func (h *Handler) MyQuizzes(c *gin.Context) {
 func (h *Handler) QuizInfo(c *gin.Context) {
 	claims := c.MustGet("claims").(*auth.Claims)
 	var quiz model.Quiz
-	if err := h.DB.First(&quiz, c.Param("id")).Error; err != nil {
+	if err := h.DB.Where("code = ?", c.Param("id")).First(&quiz).Error; err != nil {
 		fail(c, 404, "答题不存在")
 		return
 	}

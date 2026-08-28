@@ -185,7 +185,7 @@ import { toast } from '../toast'
 const route = useRoute()
 const router = useRouter()
 const store = useQuizStore()
-const quizId = Number(route.params.id)
+const quizId = String(route.params.id || '')
 
 let ws: QuizWS | null = null
 let tickTimer: number | null = null

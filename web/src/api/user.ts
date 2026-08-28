@@ -4,6 +4,7 @@ import type { AnswerResultData, RankingData, RushResultData } from '../ws/types'
 export interface QuizInfo {
   quiz: {
     id: number
+    code: string
     title: string
     description: string
     status: string
@@ -34,11 +35,11 @@ export function globalToken(): string {
 }
 
 export const userApi = {
-  async quizList(): Promise<{ items: { id: number; title: string; description: string; mode: string; participant_count: number; joined: boolean }[] }> {
+  async quizList(): Promise<{ items: { id: number; code: string; title: string; description: string; mode: string; participant_count: number; joined: boolean }[] }> {
     return unwrap(await http.get('/api/quizzes', { headers: { Authorization: `Bearer ${globalToken()}` } }))
   },
   /** 我参加过的全部比赛（含已结束） */
-  async myQuizzes(): Promise<{ items: { quiz_id: number; title: string; status: string; mode: string; score: number; correct: number; wrong: number; joined_at: string; participant_count: number }[] }> {
+  async myQuizzes(): Promise<{ items: { quiz_id: number; code: string; title: string; status: string; mode: string; score: number; correct: number; wrong: number; joined_at: string; participant_count: number }[] }> {
     return unwrap(await http.get('/api/my/quizzes', { headers: { Authorization: `Bearer ${globalToken()}` } }))
   },
   async login(username: string, password: string) {
@@ -52,23 +53,23 @@ export const userApi = {
     )
   },
   /** 已登录用户加入答题，换取答题作用域 token */
-  async joinQuiz(quizId: number) {
+  async joinQuiz(quizId: string) {
     return unwrap<JoinResp>(
       await http.post('/api/join', { quiz_id: quizId }, { headers: { Authorization: `Bearer ${globalToken()}` } })
     )
   },
-  async quizBrief(quizId: number) {
-    return unwrap<{ id: number; title: string; description: string; status: string; participant_count: number }>(
+  async quizBrief(quizId: string) {
+    return unwrap<{ id: number; code: string; title: string; description: string; status: string; participant_count: number }>(
       await http.get(`/api/quiz/${quizId}/brief`)
     )
   },
-  async quizInfo(quizId: number) {
+  async quizInfo(quizId: string) {
     const token = localStorage.getItem(LS.userToken(quizId)) || ''
     return unwrap<QuizInfo>(
       await http.get(`/api/quiz/${quizId}`, { headers: { Authorization: `Bearer ${token}` } })
     )
   },
-  quizToken(quizId: number) {
+  quizToken(quizId: string) {
     return localStorage.getItem(LS.userToken(quizId)) || ''
   },
   async rush(questionId: number) {
@@ -93,13 +94,13 @@ export const userApi = {
       )
     )
   },
-  async ranking(quizId: number) {
+  async ranking(quizId: string) {
     const token = localStorage.getItem(LS.userToken(quizId)) || ''
     return unwrap<{ visible: boolean; items?: RankingData['items']; mine_rank: number }>(
       await http.get(`/api/quiz/${quizId}/ranking`, { headers: { Authorization: `Bearer ${token}` } })
     )
   },
-  async result(quizId: number) {
+  async result(quizId: string) {
     const token = localStorage.getItem(LS.userToken(quizId)) || ''
     return unwrap<Record<string, any>>(
       await http.get(`/api/quiz/${quizId}/result`, { headers: { Authorization: `Bearer ${token}` } })
@@ -107,7 +108,7 @@ export const userApi = {
   },
 }
 
-function quizIdFromPath(): number {
-  const m = location.pathname.match(/\/quiz\/(\d+)/)
-  return m ? Number(m[1]) : 0
+function quizIdFromPath(): string {
+  const m = location.pathname.match(/\/quiz\/([0-9a-z]+)/)
+  return m ? m[1] : ''
 }

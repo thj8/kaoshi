@@ -21,6 +21,7 @@ export interface Question {
 
 export interface Quiz {
   id: number
+  code: string
   title: string
   description: string
   status: string
@@ -69,19 +70,19 @@ export const adminApi = {
   async createQuiz(data: Partial<Quiz>) {
     return unwrap<Quiz>(await http.post('/api/admin/quiz', data, h()))
   },
-  async updateQuiz(id: number, data: Partial<Quiz>) {
+  async updateQuiz(id: string, data: Partial<Quiz>) {
     return unwrap<Quiz>(await http.put(`/api/admin/quiz/${id}`, data, h()))
   },
-  async deleteQuiz(id: number) {
+  async deleteQuiz(id: string) {
     return unwrap<null>(await http.delete(`/api/admin/quiz/${id}`, h()))
   },
-  async getQuiz(id: number) {
+  async getQuiz(id: string) {
     return unwrap<{ quiz: Quiz; questions: Question[] }>(await http.get(`/api/admin/quiz/${id}`, h()))
   },
-  async listQuestions(quizId: number) {
-    return unwrap<Question[]>(await http.get(`/api/admin/quiz/${quizId}/questions`, h()))
+  async listQuestions(id: string) {
+    return unwrap<Question[]>(await http.get(`/api/admin/quiz/${id}/questions`, h()))
   },
-  async createQuestion(quizId: number, data: Partial<Question>) {
+  async createQuestion(quizId: string, data: Partial<Question>) {
     return unwrap<Question>(await http.post(`/api/admin/quiz/${quizId}/questions`, data, h()))
   },
   async updateQuestion(qid: number, data: Partial<Question>) {
@@ -90,16 +91,16 @@ export const adminApi = {
   async deleteQuestion(qid: number) {
     return unwrap<null>(await http.delete(`/api/admin/question/${qid}`, h()))
   },
-  async statistics(quizId: number) {
-    return unwrap<Statistics>(await http.get(`/api/admin/quiz/${quizId}/statistics`, h()))
+  async statistics(id: string) {
+    return unwrap<Statistics>(await http.get(`/api/admin/quiz/${id}/statistics`, h()))
   },
   async listUsers(keyword = '') {
     return unwrap<(AdminUser & { quiz_count?: number })[]>(await http.get(`/api/admin/users?keyword=${encodeURIComponent(keyword)}`, h()))
   },
-  async listInvitees(quizId: number) {
-    return unwrap<{ items: Invitee[] }>(await http.get(`/api/admin/quiz/${quizId}/invitees`, h()))
+  async listInvitees(id: string) {
+    return unwrap<{ items: Invitee[] }>(await http.get(`/api/admin/quiz/${id}/invitees`, h()))
   },
-  async setInvitees(quizId: number, userIds: number[]) {
+  async setInvitees(quizId: string, userIds: number[]) {
     return unwrap<null>(await http.put(`/api/admin/quiz/${quizId}/invitees`, { user_ids: userIds }, h()))
   },
 }

@@ -33,15 +33,15 @@ function connect(token, onMsg) {
   // ---------- 1. 普通 quiz：鉴权 / 防重复 / 答案泄露 ----------
   const quizA = (await j('POST', '/api/admin/quiz', { title: 's8-secA', mode: 'normal', per_question_time: 60, show_answer: true }, at)).data
   const quizB = (await j('POST', '/api/admin/quiz', { title: 's8-secB', mode: 'normal', per_question_time: 60 }, at)).data
-  const qA = (await j('POST', `/api/admin/quiz/${quizA.id}/questions`, { type: 'single', content: 'A?', answer: 'B', score: 10, required: true, sort: 1, options: [{ label: 'A', content: '1' }, { label: 'B', content: '2' }] }, at)).data
-  await j('POST', `/api/admin/quiz/${quizB.id}/questions`, { type: 'single', content: 'B?', answer: 'A', score: 10, required: true, sort: 1, options: [{ label: 'A', content: '1' }, { label: 'B', content: '2' }] }, at)
+  const qA = (await j('POST', `/api/admin/quiz/${quizA.code}/questions`, { type: 'single', content: 'A?', answer: 'B', score: 10, required: true, sort: 1, options: [{ label: 'A', content: '1' }, { label: 'B', content: '2' }] }, at)).data
+  await j('POST', `/api/admin/quiz/${quizB.code}/questions`, { type: 'single', content: 'B?', answer: 'A', score: 10, required: true, sort: 1, options: [{ label: 'A', content: '1' }, { label: 'B', content: '2' }] }, at)
 
   const ua = await mkU(`s8u${sfx}`)
-  const ja = (await j('POST', '/api/join', { quiz_id: quizA.id }, ua.token)).data
-  const jb = (await j('POST', '/api/join', { quiz_id: quizB.id }, ua.token)).data
+  const ja = (await j('POST', '/api/join', { quiz_id: quizA.code }, ua.token)).data
+  const jb = (await j('POST', '/api/join', { quiz_id: quizB.code }, ua.token)).data
 
   // 1a. quizB 的 token 不能操作 quizA 的题
-  await j('POST', `/api/admin/quiz/${quizA.id}/start`, {}, at); await sleep(400)
+  await j('POST', `/api/admin/quiz/${quizA.code}/start`, {}, at); await sleep(400)
   const cross = await j('POST', `/api/question/${qA.id}/answer`, { answer: 'B', duration: 100 }, jb.token)
   check('越权：跨 quiz token 提交被拒', cross.code !== 0, `code=${cross.code} msg=${cross.msg}`)
 
@@ -53,46 +53,46 @@ function connect(token, onMsg) {
   // 1c. 重复提交只计一次分
   const r1 = await j('POST', `/api/question/${qA.id}/answer`, { answer: 'B', duration: 100 }, ja.token)
   const r2 = await j('POST', `/api/question/${qA.id}/answer`, { answer: 'B', duration: 100 }, ja.token)
-  const res1 = (await j('GET', `/api/quiz/${quizA.id}/result`, null, ja.token)).data
+  const res1 = (await j('GET', `/api/quiz/${quizA.code}/result`, null, ja.token)).data
   check('防重复：二次提交被拒或不再加分', res1.score === 10, `first.code=${r1.code} second.code=${r2.code} score=${res1.score}`)
 
   // 1d. 答案不下发：题目相关公开接口均无 answer/analysis 字段
-  const cur = JSON.stringify(await j('GET', `/api/quiz/${quizA.id}/current-question`, null, ja.token))
-  const info = JSON.stringify(await j('GET', `/api/quiz/${quizA.id}`, null, ja.token))
+  const cur = JSON.stringify(await j('GET', `/api/quiz/${quizA.code}/current-question`, null, ja.token))
+  const info = JSON.stringify(await j('GET', `/api/quiz/${quizA.code}`, null, ja.token))
   check('答案不下发：current-question/info 无 answer/analysis', !/"answer":"[AB]"|"analysis":"/.test(cur + info), '')
-  await j('POST', `/api/admin/quiz/${quizA.id}/end`, {}, at)
+  await j('POST', `/api/admin/quiz/${quizA.code}/end`, {}, at)
 
   // ---------- 2. 100 并发抢答唯一性 ----------
   const rq = (await j('POST', '/api/admin/quiz', { title: 's8-rush100', mode: 'rush', rush_winner_count: 1, rush_time: 15, rush_answer_time: 20, rush_bonus_score: 5, show_ranking: true, rush_countdown: 0 }, at)).data
-  const qr = (await j('POST', `/api/admin/quiz/${rq.id}/questions`, { type: 'single', content: 'R?', answer: 'A', score: 10, required: true, sort: 1, options: [{ label: 'A', content: '1' }, { label: 'B', content: '2' }] }, at)).data
+  const qr = (await j('POST', `/api/admin/quiz/${rq.code}/questions`, { type: 'single', content: 'R?', answer: 'A', score: 10, required: true, sort: 1, options: [{ label: 'A', content: '1' }, { label: 'B', content: '2' }] }, at)).data
   const N = 100
   const tokens = []
   for (let i = 0; i < N; i++) {
     const u = await mkU(`s8r${sfx}_${i}`)
-    tokens.push((await j('POST', '/api/join', { quiz_id: rq.id }, u.token)).data.token)
+    tokens.push((await j('POST', '/api/join', { quiz_id: rq.code }, u.token)).data.token)
   }
-  await j('POST', `/api/admin/quiz/${rq.id}/start`, {}, at)
-  await j('POST', `/api/admin/quiz/${rq.id}/rush/start`, {}, at)
+  await j('POST', `/api/admin/quiz/${rq.code}/start`, {}, at)
+  await j('POST', `/api/admin/quiz/${rq.code}/rush/start`, {}, at)
   await sleep(400)
   const results = await Promise.allSettled(tokens.map(t => j('POST', `/api/question/${qr.id}/rush`, {}, t)))
   const winners = results.filter(r => r.status === 'fulfilled' && r.value.code === 0 && r.value.data?.rank === 1)
   const losers = results.filter(r => r.status === 'fulfilled' && r.value.code === 0 && r.value.data?.rank > 1)
   check(`100并发抢答：rank=1 唯一`, winners.length === 1, `winners=${winners.length} losers=${losers.length} errors=${results.length - winners.length - losers.length}`)
-  await j('POST', `/api/admin/quiz/${rq.id}/rush/end`, {}, at)
+  await j('POST', `/api/admin/quiz/${rq.code}/rush/end`, {}, at)
 
   // ---------- 2b. 强制收卷后实时统计：未答占位行不计入已答/正确/错误 ----------
   const quizS = (await j('POST', '/api/admin/quiz', { title: 's8-stats', mode: 'normal', per_question_time: 60, show_answer: true }, at)).data
-  const qS = (await j('POST', `/api/admin/quiz/${quizS.id}/questions`, { type: 'single', content: 'S?', answer: 'A', score: 10, required: true, sort: 1, options: [{ label: 'A', content: '1' }, { label: 'B', content: '2' }] }, at)).data
+  const qS = (await j('POST', `/api/admin/quiz/${quizS.code}/questions`, { type: 'single', content: 'S?', answer: 'A', score: 10, required: true, sort: 1, options: [{ label: 'A', content: '1' }, { label: 'B', content: '2' }] }, at)).data
   const us1 = await mkU(`s8s1${sfx}`), us2 = await mkU(`s8s2${sfx}`), us3 = await mkU(`s8s3${sfx}`)
-  const js1 = (await j('POST', '/api/join', { quiz_id: quizS.id }, us1.token)).data
-  const js2 = (await j('POST', '/api/join', { quiz_id: quizS.id }, us2.token)).data
-  const js3 = (await j('POST', '/api/join', { quiz_id: quizS.id }, us3.token)).data
-  await j('POST', `/api/admin/quiz/${quizS.id}/start`, {}, at); await sleep(300)
+  const js1 = (await j('POST', '/api/join', { quiz_id: quizS.code }, us1.token)).data
+  const js2 = (await j('POST', '/api/join', { quiz_id: quizS.code }, us2.token)).data
+  const js3 = (await j('POST', '/api/join', { quiz_id: quizS.code }, us3.token)).data
+  await j('POST', `/api/admin/quiz/${quizS.code}/start`, {}, at); await sleep(300)
   await j('POST', `/api/question/${qS.id}/answer`, { answer: 'A', duration: 100 }, js1.token) // 1 人答对
   await j('POST', `/api/question/${qS.id}/answer`, { answer: 'B', duration: 100 }, js2.token) // 1 人答错
   // us3 超时不答 → 强制收卷补未答占位行
-  await j("POST", `/api/admin/quiz/${quizS.id}/reveal`, {}, at); await sleep(300)
-  const stS = (await j('GET', `/api/admin/quiz/${quizS.id}/statistics`, null, at)).data
+  await j("POST", `/api/admin/quiz/${quizS.code}/reveal`, {}, at); await sleep(300)
+  const stS = (await j('GET', `/api/admin/quiz/${quizS.code}/statistics`, null, at)).data
   const qSt = stS.questions?.find(x => x.question_id === qS.id)
   check('实时统计：已答不含未答占位(2/3)', qSt && qSt.answered === 2, `answered=${qSt?.answered}`)
   check('实时统计：正确/错误不含未答(1/1)', qSt && qSt.correct === 1 && qSt.wrong === 1, `correct=${qSt?.correct} wrong=${qSt?.wrong}`)
@@ -103,38 +103,38 @@ function connect(token, onMsg) {
 
   // ---------- 2c. 成绩总分与排行榜（T 系列） ----------
   const quizT = (await j('POST', '/api/admin/quiz', { title: 's8-total', mode: 'normal', per_question_time: 60, show_answer: true, show_ranking: true }, at)).data
-  await j('POST', `/api/admin/quiz/${quizT.id}/questions`, { type: 'single', content: 'T1?', answer: 'A', score: 10, required: true, sort: 1, options: [{ label: 'A', content: '1' }, { label: 'B', content: '2' }] }, at)
-  await j('POST', `/api/admin/quiz/${quizT.id}/questions`, { type: 'single', content: 'T2?', answer: 'B', score: 10, required: true, sort: 2, options: [{ label: 'A', content: '1' }, { label: 'B', content: '2' }] }, at)
+  await j('POST', `/api/admin/quiz/${quizT.code}/questions`, { type: 'single', content: 'T1?', answer: 'A', score: 10, required: true, sort: 1, options: [{ label: 'A', content: '1' }, { label: 'B', content: '2' }] }, at)
+  await j('POST', `/api/admin/quiz/${quizT.code}/questions`, { type: 'single', content: 'T2?', answer: 'B', score: 10, required: true, sort: 2, options: [{ label: 'A', content: '1' }, { label: 'B', content: '2' }] }, at)
   const ut1 = await mkU(`s8t1${sfx}`), ut2 = await mkU(`s8t2${sfx}`), ut3 = await mkU(`s8t3${sfx}`)
-  const jt1 = (await j('POST', '/api/join', { quiz_id: quizT.id }, ut1.token)).data
-  const jt2 = (await j('POST', '/api/join', { quiz_id: quizT.id }, ut2.token)).data
-  await j('POST', '/api/join', { quiz_id: quizT.id }, ut3.token) // 只加入不答题
-  const qsT = (await j('GET', `/api/admin/quiz/${quizT.id}/questions`, null, at)).data
-  await j('POST', `/api/admin/quiz/${quizT.id}/start`, {}, at); await sleep(400)
+  const jt1 = (await j('POST', '/api/join', { quiz_id: quizT.code }, ut1.token)).data
+  const jt2 = (await j('POST', '/api/join', { quiz_id: quizT.code }, ut2.token)).data
+  await j('POST', '/api/join', { quiz_id: quizT.code }, ut3.token) // 只加入不答题
+  const qsT = (await j('GET', `/api/admin/quiz/${quizT.code}/questions`, null, at)).data
+  await j('POST', `/api/admin/quiz/${quizT.code}/start`, {}, at); await sleep(400)
   await j('POST', `/api/question/${qsT[0].id}/answer`, { answer: 'A', duration: 100 }, jt1.token) // u1 对
   await j('POST', `/api/question/${qsT[0].id}/answer`, { answer: 'B', duration: 100 }, jt2.token) // u2 错
-  await j('POST', `/api/admin/quiz/${quizT.id}/next`, {}, at); await sleep(400)
+  await j('POST', `/api/admin/quiz/${quizT.code}/next`, {}, at); await sleep(400)
   const t1q2 = await j('POST', `/api/question/${qsT[1].id}/answer`, { answer: 'B', duration: 100 }, jt1.token)
   check('T1 即时 total_score 跨题累计', t1q2.data?.score === 10 && t1q2.data?.total_score === 20, `score=${t1q2.data?.score} total=${t1q2.data?.total_score}`)
   await j('POST', `/api/question/${qsT[1].id}/answer`, { answer: 'B', duration: 100 }, jt2.token) // u2 对
   await sleep(300)
-  const stT = (await j('GET', `/api/admin/quiz/${quizT.id}/statistics`, null, at)).data
+  const stT = (await j('GET', `/api/admin/quiz/${quizT.code}/statistics`, null, at)).data
   const rk = stT.ranking || []
   const rk1 = rk[0], rk2 = rk[1]
   check('T2 排行榜按分数降序', rk.length >= 2 && rk1.score > rk2.score && rk1.rank === 1 && rk2.rank === 2, `r1=${rk1?.rank}/${rk1?.score} r2=${rk2?.rank}/${rk2?.score}`)
   check('T3 总分=各题得分之和(20/10/0)', rk1.score === 20 && rk2.score === 10 && rk.every(r => [20, 10, 0].includes(r.score)), JSON.stringify(rk.map(r => r.score)))
   check('T4 未答题者 0 分在榜', rk.some(r => r.score === 0), '')
-  const resT = (await j('GET', `/api/quiz/${quizT.id}/result`, null, jt1.token)).data
+  const resT = (await j('GET', `/api/quiz/${quizT.code}/result`, null, jt1.token)).data
   check('T5 成绩单总分=累计分', resT.total_score === 20 || resT.score === 20, JSON.stringify(resT).slice(0, 120))
 
   // ---------- 3. 断线重连恢复 ----------
   const quizC = (await j('POST', '/api/admin/quiz', { title: 's8-reconnect', mode: 'normal', per_question_time: 120 }, at)).data
-  const qC = (await j('POST', `/api/admin/quiz/${quizC.id}/questions`, { type: 'single', content: 'C?', answer: 'A', score: 10, required: true, sort: 1, options: [{ label: 'A', content: '1' }, { label: 'B', content: '2' }] }, at)).data
+  const qC = (await j('POST', `/api/admin/quiz/${quizC.code}/questions`, { type: 'single', content: 'C?', answer: 'A', score: 10, required: true, sort: 1, options: [{ label: 'A', content: '1' }, { label: 'B', content: '2' }] }, at)).data
   const uc = await mkU(`s8c${sfx}`)
-  const jc = (await j('POST', '/api/join', { quiz_id: quizC.id }, uc.token)).data
+  const jc = (await j('POST', '/api/join', { quiz_id: quizC.code }, uc.token)).data
   let synced = null
   const ws1 = await connect(jc.token, m => { if (m.event === 'sync') synced = m.data })
-  await j('POST', `/api/admin/quiz/${quizC.id}/start`, {}, at); await sleep(500)
+  await j('POST', `/api/admin/quiz/${quizC.code}/start`, {}, at); await sleep(500)
   ws1.close() // 断线
   await sleep(300)
   const ws2 = await connect(jc.token, m => { if (m.event === 'sync') synced = m.data })
@@ -143,10 +143,10 @@ function connect(token, onMsg) {
   const sub = await j('POST', `/api/question/${qC.id}/answer`, { answer: 'A', duration: 300 }, jc.token)
   check('重连后仍可作答', sub.code === 0, `code=${sub.code}`)
   ws2.close()
-  await j('POST', `/api/admin/quiz/${quizC.id}/end`, {}, at)
+  await j('POST', `/api/admin/quiz/${quizC.code}/end`, {}, at)
 
   // 清理
-  for (const q of [quizA.id, quizB.id, rq.id, quizC.id]) await j('DELETE', `/api/admin/quiz/${q}`, null, at)
+  for (const q of [quizA.code, quizB.code, rq.code, quizC.code]) await j('DELETE', `/api/admin/quiz/${q}`, null, at)
   console.log(`\n${fail === 0 ? 'ALL PASS' : 'HAS FAILURES'}: ${pass} passed, ${fail} failed`)
   process.exit(fail === 0 ? 0 : 1)
 })().catch(e => { console.error('FAIL:', e.message); process.exit(1) })

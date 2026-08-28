@@ -139,7 +139,7 @@ import { Ev, type WSMessage } from '../ws/types'
 import { LS } from '../api'
 
 const route = useRoute()
-const quizId = Number(route.params.id)
+const quizId = String(route.params.id || '')
 
 const quiz = ref<Quiz | null>(null)
 const questions = ref<Question[]>([])

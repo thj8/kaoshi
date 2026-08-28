@@ -39,5 +39,12 @@ func NewDB(dsn string) (*gorm.DB, error) {
 	if err := db.AutoMigrate(model.AllModels()...); err != nil {
 		return nil, err
 	}
+
+	// 旧数据回填对外随机码
+	var quizzes []model.Quiz
+	db.Where("code IS NULL OR code = ''").Find(&quizzes)
+	for _, q := range quizzes {
+		db.Model(&model.Quiz{}).Where("id = ?", q.ID).Update("code", model.NewQuizCode())
+	}
 	return db, nil
 }

@@ -14,7 +14,7 @@
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px">
           <h2>题目（{{ questions.length }}）</h2>
           <div style="display: flex; gap: 8px">
-            <button class="btn btn-primary" style="padding: 8px 16px" @click="$router.push(`/admin/quiz/${quiz.id}/console`)">
+            <button class="btn btn-primary" style="padding: 8px 16px" @click="$router.push(`/admin/quiz/${quiz.code}/console`)">
               打开控制台
             </button>
             <button v-if="quiz.status === 'WAITING'" class="btn btn-ghost" style="padding: 8px 16px" @click="openEditor()">＋ 添加题目</button>
@@ -235,7 +235,7 @@ import { useRoute } from 'vue-router'
 import { adminApi, type Quiz, type Question, type Option } from '../api/admin'
 
 const route = useRoute()
-const quizId = Number(route.params.id)
+const quizId = String(route.params.id || '')
 const quiz = ref<Quiz | null>(null)
 const questions = ref<Question[]>([])
 const saving = ref(false)

@@ -21,31 +21,31 @@ function connect(url, token, onMsg) {
 const at = (await j('POST', '/api/admin/login', { username: 'admin', password: env('ADMIN_PASS') })).data.token
 const sfx = Date.now() % 100000
 const quiz = (await j('POST', '/api/admin/quiz', { title: `diag-rush-${sfx}`, mode: 'rush', rush_winner_count: 1, rush_time: 10, rush_answer_time: 20, rush_bonus_score: 5, show_answer: true, show_ranking: true }, at)).data
-const q = (await j('POST', `/api/admin/quiz/${quiz.id}/questions`, { type: 'single', content: 'diag?', answer: 'B', score: 10, required: false, sort: 1, options: [{ label: 'A', content: '1' }, { label: 'B', content: '2' }] }, at)).data
+const q = (await j('POST', `/api/admin/quiz/${quiz.code}/questions`, { type: 'single', content: 'diag?', answer: 'B', score: 10, required: false, sort: 1, options: [{ label: 'A', content: '1' }, { label: 'B', content: '2' }] }, at)).data
 await j('POST', '/api/admin/users', { username: `dg${sfx}`, password: 'test-pass-1234', nickname: '诊断员' }, at)
 const u = (await j('POST', '/api/auth/login', { username: `dg${sfx}`, password: 'test-pass-1234' })).data
-const jt = (await j('POST', '/api/join', { quiz_id: quiz.id }, u.token)).data.token
+const jt = (await j('POST', '/api/join', { quiz_id: quiz.code }, u.token)).data.token
 
 // 管理端 WS（与 ConsolePage 相同：?quiz= + admin token）
 const adminGot = []
-const aws = await connect(`${B.replace(/^http/, 'ws')}/ws?quiz=${quiz.id}`, at, m => {
+const aws = await connect(`${B.replace(/^http/, 'ws')}/ws?quiz=${quiz.code}`, at, m => {
   if (m.event !== 'question:countdown') adminGot.push(m.event + ' ' + JSON.stringify(m.data).slice(0, 160))
 })
 console.log('admin ws connected')
 
-await j('POST', `/api/admin/quiz/${quiz.id}/start`, {}, at); await sleep(500)
-await j('POST', `/api/admin/quiz/${quiz.id}/rush/start`, {}, at); await sleep(500)
+await j('POST', `/api/admin/quiz/${quiz.code}/start`, {}, at); await sleep(500)
+await j('POST', `/api/admin/quiz/${quiz.code}/rush/start`, {}, at); await sleep(500)
 const rush = await j('POST', `/api/question/${q.id}/rush`, {}, jt)
 console.log('user rush resp:', JSON.stringify(rush))
 await sleep(600)
 // rush/end（engine 可能自动 end；若 status 仍 RUSHING 则手动）
-const st = await j('GET', `/api/admin/quiz/${quiz.id}`, null, at)
-if (st.data.status === 'RUSHING') await j('POST', `/api/admin/quiz/${quiz.id}/rush/end`, {}, at)
+const st = await j('GET', `/api/admin/quiz/${quiz.code}`, null, at)
+if (st.data.status === 'RUSHING') await j('POST', `/api/admin/quiz/${quiz.code}/rush/end`, {}, at)
 await sleep(500)
 const ans = await j('POST', `/api/question/${q.id}/answer`, { answer: 'A', duration: 500 }, jt)
 console.log('user answer resp:', JSON.stringify(ans))
 await sleep(500)
-await j('POST', `/api/admin/quiz/${quiz.id}/reveal`, {}, at)
+await j('POST', `/api/admin/quiz/${quiz.code}/reveal`, {}, at)
 await sleep(800)
 
 console.log('--- admin WS received ---')

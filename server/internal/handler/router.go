@@ -13,6 +13,7 @@ import (
 	"kaoshi/internal/handler/admin"
 	"kaoshi/internal/handler/api"
 	"kaoshi/internal/middleware"
+	"kaoshi/internal/model"
 	"kaoshi/internal/ws"
 )
 
@@ -29,6 +30,13 @@ func Register(r *gin.Engine, cfg *config.Config, db *gorm.DB, rdb *redis.Client)
 	// WebSocket
 	wsSrv := &ws.Server{Hub: hub}
 	wsSrv.Snapshot = eng.Snapshot
+	wsSrv.QuizIDByCode = func(code string) int64 {
+		var q model.Quiz
+		if db.Where("code = ?", code).First(&q).Error != nil {
+			return 0
+		}
+		return q.ID
+	}
 	r.GET("/ws", wsSrv.HandleWS)
 
 	// 公开接口（注册/登录/brief）
