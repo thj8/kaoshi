@@ -102,7 +102,7 @@ interface Team {
 }
 
 const route = useRoute()
-const quizId = Number(route.params.id)
+const quizId = String(route.params.id || '')
 const demo = route.query.demo === '1'
 const teams = reactive<Team[]>([])
 const hint = ref('')

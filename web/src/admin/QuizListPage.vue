@@ -18,23 +18,23 @@
         </div>
         <p class="text-dim" style="margin: 8px 0; font-size: 13px; min-height: 18px">{{ q.description || '—' }}</p>
         <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px">
-          <span class="tag">{{ q.mode === 'rush' ? '抢答模式' : '普通模式' }}</span>
-          <button class="tag link-tag" style="cursor: pointer" title="点击复制加入链接" @click="copyLink(q.id)">
-            🔗 加入链接 <b style="color: var(--primary)">{{ joinLink(q.id) }}</b>
+          <span class="tag">{{ q.mode === 'rush' ? '抢答模式' : q.mode === 'exam' ? '考试模式' : '普通模式' }}</span>
+          <button class="tag link-tag" style="cursor: pointer" title="点击复制加入链接" @click="copyLink(q.code)">
+            🔗 加入链接 <b style="color: var(--primary)">{{ joinLink(q.code) }}</b>
           </button>
         </div>
         <div style="display: flex; gap: 8px">
-          <button class="btn btn-primary" style="flex: 1; padding: 9px" @click="$router.push(`/admin/quiz/${q.id}/console`)">
+          <button class="btn btn-primary" style="flex: 1; padding: 9px" @click="$router.push(`/admin/quiz/${q.code}/console`)">
             控制台
           </button>
-          <button class="btn btn-ghost" style="flex: 1; padding: 9px" @click="$router.push(`/admin/quiz/${q.id}/stats`)">
+          <button class="btn btn-ghost" style="flex: 1; padding: 9px" @click="$router.push(`/admin/quiz/${q.code}/stats`)">
             统计
           </button>
           <button
             v-if="q.status === 'WAITING'"
             class="btn btn-ghost"
             style="flex: 1; padding: 9px"
-            @click="$router.push(`/admin/quiz/${q.id}`)"
+            @click="$router.push(`/admin/quiz/${q.code}`)"
           >
             编辑
           </button>
@@ -66,8 +66,9 @@
           <div class="frow">
             <label>答题模式 *</label>
             <select v-model="form.mode" class="input">
-              <option value="normal">普通模式（全员作答）</option>
+              <option value="normal">普通模式（逐题发布，全员作答）</option>
               <option value="rush">抢答模式（先抢先答）</option>
+              <option value="exam">考试模式（自由切题，统一交卷）</option>
             </select>
           </div>
           <div class="frow">
@@ -180,7 +181,7 @@ async function create() {
   try {
     const quiz = await adminApi.createQuiz(form)
     showCreate.value = false
-    router.push(`/admin/quiz/${quiz.id}`)
+    router.push(`/admin/quiz/${quiz.code}`)
   } catch (e: any) {
     err.value = e?.response?.data?.msg || '创建失败'
   } finally {
@@ -190,20 +191,20 @@ async function create() {
 
 async function del(q: Quiz) {
   if (!confirm(`确定删除「${q.title}」？题目将一并删除`)) return
-  await adminApi.deleteQuiz(q.id)
+  await adminApi.deleteQuiz(q.code)
   load()
 }
 
-function joinLink(id: number) {
-  return `${location.origin}/join/${id}`
+function joinLink(code: string) {
+  return `${location.origin}/join/${code}`
 }
 
-async function copyLink(id: number) {
+async function copyLink(code: string) {
   try {
-    await navigator.clipboard.writeText(joinLink(id))
-    alert('已复制加入链接：\n' + joinLink(id))
+    await navigator.clipboard.writeText(joinLink(code))
+    alert('已复制加入链接：\n' + joinLink(code))
   } catch {
-    alert('加入链接：' + joinLink(id))
+    alert('加入链接：' + joinLink(code))
   }
 }
 

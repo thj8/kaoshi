@@ -13,6 +13,7 @@ import (
 	"kaoshi/internal/handler/admin"
 	"kaoshi/internal/handler/api"
 	"kaoshi/internal/middleware"
+	"kaoshi/internal/model"
 	"kaoshi/internal/ws"
 )
 
@@ -29,6 +30,13 @@ func Register(r *gin.Engine, cfg *config.Config, db *gorm.DB, rdb *redis.Client)
 	// WebSocket
 	wsSrv := &ws.Server{Hub: hub}
 	wsSrv.Snapshot = eng.Snapshot
+	wsSrv.QuizIDByCode = func(code string) int64 {
+		var q model.Quiz
+		if db.Where("code = ?", code).First(&q).Error != nil {
+			return 0
+		}
+		return q.ID
+	}
 	r.GET("/ws", wsSrv.HandleWS)
 
 	// 公开接口（注册/登录/brief）
@@ -50,6 +58,12 @@ func Register(r *gin.Engine, cfg *config.Config, db *gorm.DB, rdb *redis.Client)
 		user.POST("/question/:id/rush", answerH.Rush)
 		user.GET("/quiz/:id/ranking", answerH.Ranking)
 		user.GET("/quiz/:id/result", answerH.Result)
+
+		// 考试（自由切题）模式
+		paperH := api.NewPaper(db, eng)
+		user.GET("/quiz/:id/paper", paperH.Paper)
+		user.POST("/quiz/:id/paper/answer", paperH.SavePaperAnswer)
+		user.POST("/quiz/:id/paper/submit", paperH.SubmitPaper)
 	}
 
 	// 管理端

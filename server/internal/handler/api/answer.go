@@ -46,17 +46,12 @@ func (h *AnswerHandler) Submit(c *gin.Context) {
 // Ranking GET /api/quiz/:id/ranking
 func (h *AnswerHandler) Ranking(c *gin.Context) {
 	claims := c.MustGet("claims").(*auth.Claims)
-	quizID, _ := parseInt64(c.Param("id"))
-	if quizID != claims.QuizID {
+	quiz, found := quizByCode(h.DB, c.Param("id"))
+	if !found || quiz.ID != claims.QuizID {
 		fail(c, 403, "只能查看自己参加的答题")
 		return
 	}
-	var quiz model.Quiz
-	if err := h.DB.First(&quiz, quizID).Error; err != nil {
-		fail(c, 404, "答题不存在")
-		return
-	}
-	items := h.Eng.Ranking(quizID, 100)
+	items := h.Eng.Ranking(quiz.ID, 100)
 	if !quiz.ShowRanking {
 		// 关闭排行时不暴露榜单，仅返回自己排名
 		mine := gin.H{"visible": false}
@@ -82,16 +77,12 @@ func (h *AnswerHandler) Ranking(c *gin.Context) {
 // Result GET /api/quiz/:id/result 个人成绩（结束后）
 func (h *AnswerHandler) Result(c *gin.Context) {
 	claims := c.MustGet("claims").(*auth.Claims)
-	quizID, _ := parseInt64(c.Param("id"))
-	if quizID != claims.QuizID {
+	quiz, found := quizByCode(h.DB, c.Param("id"))
+	if !found || quiz.ID != claims.QuizID {
 		fail(c, 403, "只能查看自己参加的答题")
 		return
 	}
-	var quiz model.Quiz
-	if err := h.DB.First(&quiz, quizID).Error; err != nil {
-		fail(c, 404, "答题不存在")
-		return
-	}
+	quizID := quiz.ID
 
 	var p model.Participant
 	if err := h.DB.Where("quiz_id = ? AND user_id = ?", quizID, claims.UserID).First(&p).Error; err != nil {
@@ -152,12 +143,12 @@ func (h *AnswerHandler) Rush(c *gin.Context) {
 // CurrentQuestion GET /api/quiz/:id/current-question 当前题（REST 兑底，刷新恢复）
 func (h *AnswerHandler) CurrentQuestion(c *gin.Context) {
 	claims := c.MustGet("claims").(*auth.Claims)
-	quizID, _ := parseInt64(c.Param("id"))
-	if quizID != claims.QuizID {
+	quiz, found := quizByCode(h.DB, c.Param("id"))
+	if !found || quiz.ID != claims.QuizID {
 		fail(c, 403, "只能查看自己参加的答题")
 		return
 	}
-	q := h.Eng.CurrentQuestionInfo(quizID)
+	q := h.Eng.CurrentQuestionInfo(quiz.ID)
 	if q == nil {
 		ok(c, nil)
 		return

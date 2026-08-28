@@ -4,10 +4,10 @@
 
 ## 项目简介
 
-线上实时答题系统：管理员创建答题活动、发布题目、控制流程；用户输入昵称进入、答题、抢答、查看实时排名。
+线上实时答题系统：管理员创建答题活动、发布题目、控制流程；用户账号登录进入、答题、抢答、查看实时排名。
 
-- 需求全文见 `task.md`
-- 开发计划与阶段划分见 `plan.md`，使用说明见 `README.md`
+- 需求全文见 `docs/task.md`
+- 开发计划与阶段划分见 `docs/plan.md`，使用说明见 `README.md`
 - 当前进度：阶段 0-8 ✅ 全部完成（抢答原子性、实时排行榜、统计页、加固 E2E 均通过；回归脚本 scripts/hardening_e2e.mjs）
 
 ## 仓库结构
@@ -15,7 +15,11 @@
 ```
 kaoshi/
 ├── docker-compose.yml      # mysql(13306) redis(16379) server(18080) web(13000)
-├── task.md / plan.md
+├── README.md / AGENTS.md
+├── docs/                  # 需求、计划、用例、接口文档
+│   ├── task.md / plan.md / TESTCASES.md
+│   ├── API.md / design-quiz-access.md
+│   └── 客户演示指南.md     # 不入库（含真实凭据，已 gitignore）
 ├── server/                 # Go 后端 (Gin + GORM + gorilla/websocket + go-redis)
 │   ├── cmd/server/         # 入口 main.go
 │   ├── internal/
@@ -80,9 +84,11 @@ npm run build               # 类型检查 + 构建（vue-tsc + vite）
 1. **服务端是唯一事实来源**：当前题目、状态、倒计时、得分、排名、抢答结果全部由服务端判定；客户端只渲染
 2. **正确答案绝不下发**：`Question.Answer`、`Analysis` 用 `json:"-"` 剥离；仅 `answer:reveal` 且 quiz 开启 `show_answer` 时才发送
 3. **防重复**：answers / rush_records 表的 `(quiz_id, question_id, user_id)` 唯一索引 + Redis 判重，双保险；分数只在首次提交时累加
-4. **倒计时以服务器时间为准**：下发 deadline 时间戳 + 服务端定时广播剩余秒数；到点服务端强制收卷
+4. **倒计时以服务器时间为准**：下发 deadline 时间戳 + 服务端定时广播剩余秒数；到点服务端强制收卷。
+   提交与收卷共用 deadline+1.5s 宽限：客户端到点自动补交「已选未交」的答案，
+   服务端收卷定时器延后 1.5s（`forceCollect` 的 `collectGrace`）避免抢先记未答挡掉在途补交——两侧宽限必须成对存在，勿单删
 5. **抢答原子性**：Redis Lua/ZSET 判序，按服务器收到时间排序，禁止使用客户端时间；`rank` 是 MySQL 8 保留字，SQL 中必须写 `` `rank` ``（反引号）
-6. **WS 消息协议**：`{event, data, ts}`，事件名对齐 task.md 二十二节（`activity:* / question:* / answer:* / rush:* / ranking:update / statistics:update`）
+6. **WS 消息协议**：`{event, data, ts}`，事件名对齐 docs/task.md 二十二节（`activity:* / question:* / answer:* / rush:* / ranking:update / statistics:update`）
 7. **状态机**：`WAITING / RUNNING / PAUSED / RUSHING / ANSWERING / REVEALING / FINISHED`，任何写操作先校验状态
 
 ## 编码约定
@@ -94,7 +100,7 @@ npm run build               # 类型检查 + 构建（vue-tsc + vite）
 - **管理端建题字段名**：REST 用 `time_limit`（秒），不是 `duration`——传错会静默落 0 导致题目无倒计时不强制收卷
 - Vue：一律 `<script setup lang="ts">` 组合式 API；REST 调用走 `src/api/index.ts` 的 `http`/`unwrap`；token 存 localStorage（key 见 `LS` 常量）
 - 新增页面：用户端放 `src/user/`；管理后台页面放 `src/admin/` 并作为 `AdminLayout` 的子路由注册（`src/router/index.ts`），侧边栏导航同步更新
-- **加入方式**：账号由管理端「用户管理」创建（无自助注册接口）；用户在 `/login` 登录，再通过 `/join/<quizID>` 链接自动 `POST /api/join {quiz_id}` 换取答题作用域 token（含 quiz_id，供 WS 与答题接口鉴权）
+- **加入方式**：账号由管理端「用户管理」创建（无自助注册接口）；用户在 `/login` 登录，再通过 `/join/<比赛码>` 链接自动 `POST /api/join {quiz_id: <比赛码>}` 换取答题作用域 token（含 quiz_id，供 WS 与答题接口鉴权）
 - 样式用全局 CSS 变量（`src/styles/main.css`），移动端适配必须考虑（现场手机答题）
 
 ## Git 约定
@@ -106,7 +112,7 @@ npm run build               # 类型检查 + 构建（vue-tsc + vite）
   ```
 
 - **E2E 执行时机**：仅在 git commit 前或用户明确要求时运行；平时修改代码/构建后不要主动跑 E2E
-- 用例清单与详细说明见 `TESTCASES.md`。任一断言失败：先修复再提交，禁止跳过或只跑其中一个。
+- 用例清单与详细说明见 `docs/TESTCASES.md`。任一断言失败：先修复再提交，禁止跳过或只跑其中一个。
 - **分支工作流（重要）**：每个阶段一个分支开发，完成后再合并回 main
   1. 开发前：`git checkout main && git pull` → `git checkout -b feat/stageN-简短英文`（如 `feat/stage5-rush`、`feat/stage7-stats`；修复用 `fix/xxx`）
   2. 阶段内可多次提交，消息：`<type>: 阶段N 描述`，type 用 chore/feat/fix/docs

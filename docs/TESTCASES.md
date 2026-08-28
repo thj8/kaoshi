@@ -4,7 +4,7 @@
 
 ```bash
 node scripts/security_e2e.mjs    # 理论答题安全（18 项）
-node scripts/hardening_e2e.mjs   # 抢答并发/越权/防重复/重连（7 项）
+node scripts/hardening_e2e.mjs   # 抢答并发/越权/防重复/重连/考试模式（39 项）
 ```
 
 > `security_e2e.mjs` 开头会清空 MySQL 各表 + Redis 并重启 server（`NO_CLEAN=1` 跳过），
@@ -34,6 +34,7 @@ node scripts/hardening_e2e.mjs   # 抢答并发/越权/防重复/重连（7 项�
 | C8 | 倒计时超时（含 1.5s 宽限）后提交被拒 | security_e2e | ✅ |
 | C9 | 失效 token（用户已删）提交答案被拒 | security_e2e | ✅ |
 | C10 | 失效 token（用户已删）抢答被拒 | security_e2e | ✅ |
+| C11 | 到点宽限（1.5s）内补交被接受，收卷不覆盖 | security_e2e | ✅ |
 | H1 | 越权：跨 quiz token 提交被拒 | hardening_e2e | ✅ |
 | H2 | 越权：未参加者提交被拒 | hardening_e2e | ✅ |
 | H3 | 防重复：二次提交被拒且不重复加分 | hardening_e2e | ✅ |
@@ -53,6 +54,8 @@ node scripts/hardening_e2e.mjs   # 抢答并发/越权/防重复/重连（7 项�
 | T3 | 总分=各题得分之和（20/10/0） | hardening_e2e | ✅ |
 | T4 | 未答题者 0 分在榜 | hardening_e2e | ✅ |
 | T5 | 成绩单总分=累计分 | hardening_e2e | ✅ |
+| T6 | 过题防护：切题后提交已过去的题目被拒 | hardening_e2e | ✅ |
+| T7 | 过题防护：切题后更改已答题目答案被拒 | hardening_e2e | ✅ |
 | X1 | 普通模式混合题：开窗前直接提交被拒 | security_e2e | ✅ |
 | X2 | 窗口开启中未抢先答被拒 | security_e2e | ✅ |
 | X3 | 普通模式混合题抢答成功 rank=1 | security_e2e | ✅ |
@@ -70,6 +73,27 @@ node scripts/hardening_e2e.mjs   # 抢答并发/越权/防重复/重连（7 项�
 | X15 | 已结束在我的列表+分数 | security_e2e | ✅ |
 | X16 | 参与者可重入/未参与者不可 | security_e2e | ✅ |
 | X17 | 无 token 访问我的比赛被拒 | security_e2e | ✅ |
+| E1 | 非法 mode 被拒（oneof） | hardening_e2e | ✅ |
+| E2 | 考试模式创建 mode=exam | hardening_e2e | ✅ |
+| E3 | 未开始(WAITING)不下发题目但含题数 | hardening_e2e | ✅ |
+| E4 | 开考全卷下发：3题+截止时间 | hardening_e2e | ✅ |
+| E5 | 试卷不含 answer/analysis | hardening_e2e | ✅ |
+| E6 | 多选乱序归一化(CA→AC) | hardening_e2e | ✅ |
+| E7 | 非法选项被拒 | hardening_e2e | ✅ |
+| E8 | 空答案清除草稿（全取消=未答） | hardening_e2e | ✅ |
+| E9 | 交卷前可改答案（A→B 生效） | hardening_e2e | ✅ |
+| E10 | 并发首存同一题：均成功且仅一条 | hardening_e2e | ✅ |
+| E11 | 考试模式屏蔽逐题/流程接口 | hardening_e2e | ✅ |
+| E12 | 交卷判分：未答不算错 | hardening_e2e | ✅ |
+| E13 | 交卷后修改答案被拒 | hardening_e2e | ✅ |
+| E14 | 重复交卷幂等（同分） | hardening_e2e | ✅ |
+| E15 | 答错0分（1对1错） | hardening_e2e | ✅ |
+| E16 | 重连恢复：sync 回考试态 | hardening_e2e | ✅ |
+| E17 | activity:end 广播排行榜（降序） | hardening_e2e | ✅ |
+| E18 | 统一收卷：未交卷者按已存答案计分 | hardening_e2e | ✅ |
+| E19 | 结束重算不改动已交卷成绩 | hardening_e2e | ✅ |
+| E20 | 到时自动收卷+重算 | hardening_e2e | ✅ |
+| E21 | 到时后保存被拒 | hardening_e2e | ✅ |
 
 ## 用例详细说明
 
@@ -124,6 +148,10 @@ node scripts/hardening_e2e.mjs   # 抢答并发/越权/防重复/重连（7 项�
 - **C7 结束后提交被拒**：quiz End 之后提交答案被拒。
 - **C8 倒计时超时后提交被拒**：1 秒时限的题，等 4 秒（超时+宽限 1.5s）后提交被拒
   （到点服务端强制收卷，已记录“未答”）。
+- **C11 到点宽限内补交被接受**：2 秒时限的题，到点后 ~0.3s 提交（模拟前端“时间到自动补交已选答案”）→
+  判分成功；越过宽限收卷后查 result，该答案未被覆盖为“未答”（correct=1）。
+  配套实现：服务端收卷定时器延后 1.5s（`forceCollect` 的 `collectGrace`，与提交宽限对齐），
+  否则收卷先落库会把在途补交挡成“已提交过本题答案”。
 
 ### 抢答并发 / 越权 / 防重复 / 重连（H 系列）—— scripts/hardening_e2e.mjs
 
@@ -170,6 +198,8 @@ node scripts/hardening_e2e.mjs   # 抢答并发/越权/防重复/重连（7 项�
 - **T4 未答题者 0 分在榜**：只 join 未作答的用户以 0 分出现在排行榜。
 - **T5 成绩单总分=累计分**：`GET /api/quiz/:id/result` 返回的 rank=1、
   答题 2 题、正确率 100%。
+- **T6/T7 过题防护**：普通模式下主持人切到下一题后，对旧题再次提交（补交或改答案）
+  均被拒（400「当前题目不匹配」）——服务端仅接受当前题，不允许回改已过去的题目。
 
 - **C9/C10 失效身份提交被拒**：用户被管理端删除（级联 participants/answers）后，
   其旧答题 token 提交答案/抢答必须返回非 0（401 账号已失效 / 400 参赛信息不存在）。
@@ -177,6 +207,46 @@ node scripts/hardening_e2e.mjs   # 抢答并发/越权/防重复/重连（7 项�
   返回 code=0、score 正常、total_score=0，产生孤儿答案且总分永远为 0；
   已修复——UserAuth 中间件校验用户仍存在 + SubmitAnswer/RushSubmit 校验
   participant 行存在。）
+
+### 考试模式：自由切题（E 系列）—— scripts/hardening_e2e.mjs
+
+场景：exam 模式、总时长 120s、3 题（单选 B/10分、判断 A/10分、多选 AC/10分）。
+三人参加：u1 乱序作答后交卷（q1=B 对、q3=AC 对、q2 未答）、u2 一对一错后交卷、
+u3 只保存不交卷（并发首存）。另有 3s 时长小场验到时自动收卷。
+
+- **E1 非法 mode 被拒**：`mode=free` 创建被拒（binding `oneof=normal rush exam`）。
+- **E2 考试模式创建**：`mode=exam` 创建成功且回显。
+- **E3 未开始不下发题目（防提前看题）**：WAITING 时 `GET /api/quiz/:id/paper`
+  返回 `status=WAITING` 且 `questions=[]`，但 `question_count=3`（仅题数不含内容，
+  供等待页展示「共 N 道题」）。
+- **E4 开考全卷下发**：start 后试卷 `status=RUNNING`、3 题、`deadline_at>0`
+  （= started_at + TotalTime，服务端唯一事实来源）。
+- **E5 答案绝不下发**：试卷 JSON 无 `"answer":`/`"analysis":`
+  （`"my_answer":` 不受影响，是本人草稿）。
+- **E6 多选乱序归一化**：存 `CA` → 归一化为 `AC`（与正确答案比较前排序）。
+- **E7 非法选项被拒**：存 `XZ` 被拒（选项 label 白名单）。
+- **E8 空答案清除草稿**：存 `''` = 清除该题草稿（`my_answer` 回到 null，交卷时视为未答）。
+  （曾发现 bug：Answer 带 `binding:"required"` 且引擎拒绝空串，多选题逐一取消到
+  全空时前端保存报错——UI 已清空但服务端残留旧答案，交卷按旧答案计分；
+  已修复——空串删除草稿记录。）
+- **E9 交卷前可改答案**：q1 先存 A 再改 B，试卷回读 `my_answer=B`。
+- **E10 并发首存同一题**：同一题两条并发保存均成功、只落一条记录
+  （唯一索引 + 冲突退化更新），最终答案 ∈ {A, AC}。
+- **E11 考试模式屏蔽逐题/流程接口**：`/api/question/:id/answer`、admin 的
+  `next`/`pause`/`rush/start` 在考试模式全部被拒。
+- **E12 交卷判分口径**：2 对（20 分）、`answered=2`、**未答不算错**（`wrong=0`）。
+- **E13 交卷后锁定**：交卷后再保存答案被拒（“已交卷，不能再修改答案”）。
+- **E14 重复交卷幂等**：再次 submit 返回 code=0 且同分（不重复计分）。
+- **E15 答错 0 分**：u2 1 对 1 错 → 10 分、`wrong=1`。
+- **E16 重连恢复考试态**：WS 重连后 `sync` 带回 `status=RUNNING`、
+  `deadline_at>0`、`question=null`（考试无“当前题”）。
+- **E17 收卷广播**：admin end 后 `activity:end` 携带 3 人排行榜、降序、第一名 20 分。
+- **E18 统一收卷**：未交卷者按已保存答案计分（收卷时从 answers 重算全员）。
+- **E19 结束重算不损伤已交卷成绩**：end 后 u1 仍 20 分、`finished=true`
+  （End 的 `finished_at IS NULL` 补录不覆盖主动交卷时间戳）。
+- **E20 到时自动收卷**：3s 小场答题后等到时，`finished=true`、按已存答案得 10 分
+  （服务端 timer → End → 重算）。
+- **E21 到时后保存被拒**：FINISHED 后再保存答案被拒。
 
 ## Git 提交约束
 

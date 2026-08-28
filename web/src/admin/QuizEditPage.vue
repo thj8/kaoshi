@@ -14,7 +14,7 @@
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px">
           <h2>题目（{{ questions.length }}）</h2>
           <div style="display: flex; gap: 8px">
-            <button class="btn btn-primary" style="padding: 8px 16px" @click="$router.push(`/admin/quiz/${quiz.id}/console`)">
+            <button class="btn btn-primary" style="padding: 8px 16px" @click="$router.push(`/admin/quiz/${quiz.code}/console`)">
               打开控制台
             </button>
             <button v-if="quiz.status === 'WAITING'" class="btn btn-ghost" style="padding: 8px 16px" @click="openEditor()">＋ 添加题目</button>
@@ -60,6 +60,20 @@
             <div class="frow">
               <label>答题名称</label>
               <input v-model="cfgForm.title" class="input" :disabled="quiz.status !== 'WAITING'" />
+            </div>
+            <div class="frow">
+              <label>答题模式</label>
+              <select v-model="cfgForm.mode" class="input" :disabled="quiz.status !== 'WAITING'">
+                <option value="normal">普通模式（逐题发布，全员作答）</option>
+                <option value="rush">抢答模式（先抢先答）</option>
+                <option value="exam">考试模式（自由切题，统一交卷）</option>
+              </select>
+            </div>
+            <div v-if="cfgForm.mode === 'exam'" class="frow">
+              <label></label>
+              <p class="text-dim" style="font-size: 12px; margin-top: -6px">
+                考试模式：全卷一次性下发，用户自由前后切题、选择即保存，到「总答题时间」或手动结束时统一收卷计分
+              </p>
             </div>
             <div class="frow">
               <label>每题答题时间（秒）</label>
@@ -235,7 +249,7 @@ import { useRoute } from 'vue-router'
 import { adminApi, type Quiz, type Question, type Option } from '../api/admin'
 
 const route = useRoute()
-const quizId = Number(route.params.id)
+const quizId = String(route.params.id || '')
 const quiz = ref<Quiz | null>(null)
 const questions = ref<Question[]>([])
 const saving = ref(false)

@@ -10,6 +10,7 @@ const router = createRouter({
     { path: '/join', component: () => import('../user/JoinPage.vue') },
     { path: '/join/:id', component: () => import('../user/JoinPage.vue') },
     { path: '/quiz/:id', component: () => import('../user/QuizPage.vue') },
+    { path: '/exam/:id', component: () => import('../user/ExamPage.vue') },
     { path: '/rank/:id', component: () => import('../user/RankPage.vue') },
     // 管理端
     { path: '/admin/login', component: () => import('../admin/LoginPage.vue') },

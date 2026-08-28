@@ -72,7 +72,7 @@ import { adminApi, type Statistics } from '../api/admin'
 
 const route = useRoute()
 const router = useRouter()
-const quizId = Number(route.params.id)
+const quizId = String(route.params.id || '')
 const st = ref<Statistics | null>(null)
 const loading = ref(false)
 let timer: number | undefined

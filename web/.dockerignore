@@ -1,0 +1,5 @@
+# 防止宿主机的 node_modules（可能含被解引用/损坏的符号链接）被 COPY 进镜像，
+# 干扰容器内 npm ci 的安装结果
+node_modules
+dist
+.vite

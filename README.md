@@ -1,8 +1,8 @@
 # 🎯 线上实时答题系统
 
-实时答题活动系统：管理员创建答题、发布题目、控制流程；用户输入昵称加入、答题、抢答、查看实时排名。
+实时答题活动系统：管理员创建答题、发布题目、控制流程；用户账号登录加入、答题、抢答、查看实时排名。
 
-> 需求全文见 [task.md](task.md)，开发计划见 [plan.md](plan.md)，贡献规范见 [AGENTS.md](AGENTS.md)
+> 需求全文见 [docs/task.md](docs/task.md)，开发计划见 [docs/plan.md](docs/plan.md)，贡献规范见 [AGENTS.md](AGENTS.md)，客户演示说明见 [docs/demo-guide.md](docs/demo-guide.md)
 
 ---
 
@@ -22,7 +22,7 @@ docker compose up -d --build
 | 入口 | 地址 | 说明 |
 |---|---|---|
 | **用户登录** | `http://<服务器IP>:13000/login` | 用户名 + 密码（账号由管理员在「用户管理」创建，无自助注册） |
-| **答题用户端** | `http://<服务器IP>:13000/join/<答题ID>` | 登录后自动加入 |
+| **答题用户端** | `http://<服务器IP>:13000/join/<比赛码>` | 比赛码为 10 位随机码，登录后自动加入 |
 | **管理端** | `http://<服务器IP>:13000/admin/login` | 账号 `admin`，密码见 `.env` 的 `ADMIN_PASS` |
 | 后端 API 直连 | `http://<服务器IP>:18080` | REST + WebSocket |
 
@@ -38,12 +38,12 @@ docker compose up -d --build
 
 ## 测试流程（5 分钟跑通）
 
-> 快速造数：`python3 scripts/gen_testdata.py http://<服务器IP>:13000`
-> 自动创建「网络安全知识竞赛」：单选/多选/判断爻 20 题，每种题型前 10 题必答、后 10 题抢答（共 60 题，含解析），并打印邀请码
+> 快速造数：`node scripts/gen_exam.mjs`（直连后端 18080，自动清库并创建「计分规则验证赛」）
+> 自动创建 30 题验证赛（必答 40 分 + 抢答 60 分含倒扣，含解析与 5 个演示账号），并打印比赛码
 
 1. **管理端** `http://IP:13000/admin/login` 登录 → 创建答题（普通模式）→ 添加几道题（单选/多选/判断）
-2. 复制列表卡片上的 **加入链接**（`/join/<ID>`）发给用户
-3. **用户端**账号由管理端「用户管理」创建，用户在 `/login` 登录后经 `/join/<quizID>` 进入答题；可多浏览器/无痕窗口模拟多人
+2. 复制列表卡片上的 **加入链接**（`/join/<比赛码>`）发给用户
+3. **用户端**账号由管理端「用户管理」创建，用户在 `/login` 登录后经 `/join/<比赛码>` 进入答题；可多浏览器/无痕窗口模拟多人
 4. 管理端打开 **控制台** → `▶ 开始答题` → 用户端自动收到第 1 题
 5. 用户提交答案 → 控制台实时看到 已答/正确/选项分布
 6. `📢 公布答案` → 用户端显示正确答案与解析（受配置开关控制）
@@ -52,7 +52,7 @@ docker compose up -d --build
 ## 文档
 
 - **docs/API.md** —— REST / WebSocket 完整接口文档（含 curl 快速验证）
-- TESTCASES.md —— E2E 测试用例清单（提交前必须全绿）
+- docs/TESTCASES.md —— E2E 测试用例清单（提交前必须全绿）
 - `node scripts/seed.mjs` —— 清库并生成演示数据（3 个选手账号 + 2 场答题）
 
 ## 技术栈
@@ -72,7 +72,8 @@ docker compose up -d --build
 
 - **服务端是唯一事实来源**：当前题目、状态机、倒计时、得分、排名全部由服务端判定
 - **答案零泄漏**：`question:publish` 剥离 answer/analysis；仅 `answer:reveal` 且开启配置时下发
-- **服务器倒计时**：下发 deadline 时间戳 + 每秒广播剩余秒；到点强制收卷（必答记未答）
+- **服务器倒计时**：下发 deadline 时间戳 + 每秒广播剩余秒；到点先给 1.5s 宽限放行在途提交
+  （客户端到点自动补交已选未交的答案），宽限后强制收卷（必答记未答）
 - **防重复**：`(quiz_id, question_id, user_id)` 唯一索引 + 提交前查询双保险
 - **断线重连**：WS 心跳 + 指数退避重连；重连即下发 `sync` 全量快照恢复进度
 
@@ -136,5 +137,5 @@ node scripts/hardening_e2e.mjs   # 需先 docker compose up；BASE_URL 可覆盖
 
 ```bash
 docker exec kaoshi-mysql mysql -uroot -p"$MYSQL_ROOT_PASSWORD" kaoshi \
-  -e "SET FOREIGN_KEY_CHECKS=0; TRUNCATE answers; TRUNCATE rush_records; TRUNCATE participants; TRUNCATE question_options; TRUNCATE questions; TRUNCATE quizzes; TRUNCATE users; SET FOREIGN_KEY_CHECKS=1;"
+  -e "SET FOREIGN_KEY_CHECKS=0; TRUNCATE answers; TRUNCATE rush_records; TRUNCATE participants; TRUNCATE quiz_invitees; TRUNCATE question_options; TRUNCATE questions; TRUNCATE quizzes; TRUNCATE users; SET FOREIGN_KEY_CHECKS=1;"
 ```

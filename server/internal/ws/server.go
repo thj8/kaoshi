@@ -25,6 +25,8 @@ type SnapshotProvider func(claims *auth.Claims) (*SyncData, error)
 type Server struct {
 	Hub      *Hub
 	Snapshot SnapshotProvider
+	// QuizIDByCode 管理端 ?quiz=<code> 房间解析（依赖注入，router 装配）
+	QuizIDByCode func(code string) int64
 }
 
 // HandleWS /ws，token 走 Sec-WebSocket-Protocol 子协议（不下发 URL，避免进反代 access log）
@@ -55,10 +57,10 @@ func (s *Server) HandleWS(c *gin.Context) {
 	}
 
 	quizID := claims.QuizID
-	// 管理端通过 ?quiz= 指定房间
+	// 管理端通过 ?quiz=<code> 指定房间
 	if claims.Role == auth.RoleAdmin {
-		if n, ok := parseInt64(c.Query("quiz")); ok {
-			quizID = n
+		if code := c.Query("quiz"); code != "" && s.QuizIDByCode != nil {
+			quizID = s.QuizIDByCode(code)
 		}
 	}
 	if quizID == 0 {
@@ -92,20 +94,6 @@ func (s *Server) HandleWS(c *gin.Context) {
 			client.Emit(EventSync, snap)
 		}
 	}
-}
-
-func parseInt64(s string) (int64, bool) {
-	if s == "" {
-		return 0, false
-	}
-	n := int64(0)
-	for _, ch := range s {
-		if ch < '0' || ch > '9' {
-			return 0, false
-		}
-		n = n*10 + int64(ch-'0')
-	}
-	return n, true
 }
 
 // readPump 读泵：处理客户端 ping，检测断开

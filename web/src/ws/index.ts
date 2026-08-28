@@ -7,14 +7,14 @@ export type Handler = (data: any) => void
 
 export interface WSOptions {
   token: string
-  /** 管理端需指定 quiz id */
-  quiz?: number
+  /** 管理端需指定比赛 code */
+  quiz?: string
   onEvent: Handler
   onStatus?: (status: 'connecting' | 'open' | 'closed' | 'retrying') => void
 }
 
 /** token 走 Sec-WebSocket-Protocol 子协议（不下发 URL，避免进访问日志）；后端从该头读取 */
-export function wsURL(quiz?: number) {
+export function wsURL(quiz?: string) {
   const base = import.meta.env.VITE_WS_BASE || `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}`
   return quiz ? `${base}/ws?quiz=${quiz}` : `${base}/ws`
 }

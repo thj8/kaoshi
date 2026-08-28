@@ -1,6 +1,22 @@
 package model
 
-import "time"
+import (
+	"crypto/rand"
+	"time"
+)
+
+// quizCodeAlphabet 对外随机码字符集（去掉 0/o/1/i/l 等易混淆字符）
+const quizCodeAlphabet = "23456789abcdefghjkmnpqrstuvwxyz"
+
+// NewQuizCode 生成 10 位对外随机码（唯一性由 code 列唯一索引保证，冲突时建赛侧重试）
+func NewQuizCode() string {
+	b := make([]byte, 10)
+	rand.Read(b)
+	for i := range b {
+		b[i] = quizCodeAlphabet[int(b[i])%len(quizCodeAlphabet)]
+	}
+	return string(b)
+}
 
 // 用户（答题者，账号密码登录）
 type User struct {
@@ -24,13 +40,15 @@ const (
 
 // 答题模式
 const (
-	ModeNormal = "normal" // 普通模式：全员逐题作答
-	ModeRush   = "rush"   // 抢答模式
+	ModeNormal = "normal" // 普通模式：管理员逐题发布，全员逐题作答
+	ModeRush   = "rush"   // 抢答模式：先抢先答
+	ModeExam   = "exam"   // 考试模式：全卷一次性下发，统一时长，自由前后切题，交卷/到时统一收卷
 )
 
 // 答题活动
 type Quiz struct {
 	ID          int64  `gorm:"primaryKey;autoIncrement" json:"id"`
+	Code        string `gorm:"size:16;uniqueIndex" json:"code"` // 对外 10 位随机码（API/WS 寻址用，自增 id 仅限内部）
 	Title       string `gorm:"size:128;notNull" json:"title"`
 	Description string `gorm:"size:1024" json:"description"`
 	Status      string `gorm:"size:16;notNull;default:WAITING;index" json:"status"`

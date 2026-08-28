@@ -61,7 +61,7 @@ func (h *Handler) Me(c *gin.Context) {
 // ---------- 加入答题（需登录） ----------
 
 type joinReq struct {
-	QuizID int64 `json:"quiz_id" binding:"required"`
+	QuizCode string `json:"quiz_id" binding:"required"` // 值为 10 位随机码
 }
 
 // Join POST /api/join：已登录用户加入指定答题，返回答题作用域 token
@@ -73,7 +73,7 @@ func (h *Handler) Join(c *gin.Context) {
 		return
 	}
 	var quiz model.Quiz
-	if err := h.DB.First(&quiz, req.QuizID).Error; err != nil {
+	if err := h.DB.Where("code = ?", req.QuizCode).First(&quiz).Error; err != nil {
 		fail(c, 404, "答题不存在，请检查链接")
 		return
 	}

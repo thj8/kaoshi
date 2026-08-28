@@ -54,6 +54,10 @@
           <div class="result-item"><div class="num">{{ result ? result.correct_rate.toFixed(0) + '%' : '—' }}</div><div class="lbl">正确率</div></div>
           <div class="result-item"><div class="num">{{ formatDur(result?.duration_sec ?? 0) }}</div><div class="lbl">用时</div></div>
         </div>
+        <!-- 逐题回顾索引 -->
+        <div v-if="result?.total" class="finish-qix">
+          <QuestionIndex :total="result.total" :states="qStates" />
+        </div>
         <p class="text-dim finish-total">共 {{ result?.total ?? '—' }} 题</p>
 
         <div v-if="ranking.length" class="final-ranking">
@@ -67,33 +71,47 @@
         <button class="btn btn-ghost" @click="exit">退出</button>
       </section>
 
-      <!-- 答题中 -->
-      <section v-else-if="store.question" class="panel q-panel">
+      <!-- 答题中：左题目卡 + 右题目索引（与考试模式一致） -->
+      <template v-else-if="store.question">
+        <!-- 移动端索引折叠条 -->
+        <button class="idx-toggle" @click="indexOpen = !indexOpen">
+          <span>题目索引 · 第 {{ store.question.index }} / {{ store.question.total }} 题</span>
+          <i>{{ indexOpen ? '收起 ▲' : '展开 ▼' }}</i>
+        </button>
+
+        <div class="cols">
+          <section class="panel q-panel">
         <div class="q-meta">
           <span class="tag">{{ typeText(store.question.type) }}</span>
           <span class="tag">{{ store.question.score }} 分</span>
-          <span class="tag">{{ store.question.required ? '必答' : '可跳过' }}</span>
+          <span class="tag">{{ isRushQ ? '抢答' : store.question.required ? '必答' : '可跳过' }}</span>
           <span v-if="isRushQ" class="tag tag-rush">抢答题</span>
         </div>
         <h2 class="q-content">{{ store.question.content }}</h2>
 
         <!-- 抢答状态提示（按钮固定在页底，见 rush-dock） -->
-        <div v-if="rushPhase !== 'idle'" class="rush-panel">
-          <div v-if="rushPhase === 'countdown'" class="rush-countdown" :key="rushCd">
-            <b :class="{ last: rushCd <= 1 }">{{ rushCd }}</b>
+        <div v-if="rushPhase !== 'idle' || awaitingRush" class="rush-panel">
+          <div v-if="awaitingRush && rushPhase === 'idle'" class="rush-banner waiting">
+            <b>等待开抢</b>
+            <small>请稍候，主持人即将开启抢答</small>
           </div>
-          <div v-else class="rush-banner" :class="rushPhase">
-            <b>{{ rushBanner[0] }}</b>
-            <small>{{ rushBanner[1] }}</small>
-          </div>
-          <!-- 名额进度（仅抢答窗口内） -->
-          <div v-if="store.status === 'RUSHING' && rushPhase !== 'claimed'" class="rush-meter">
-            <div class="rush-quota">
-              <div class="rush-quota-bar"><div class="rush-quota-fill" :style="{ width: rushQuotaPct }"></div></div>
-              <span>已抢 {{ store.rush_winners?.length || 0 }} / {{ rushTotal }}</span>
+          <template v-else>
+            <div v-if="rushPhase === 'countdown'" class="rush-countdown" :key="rushCd">
+              <b :class="{ last: rushCd <= 1 }">{{ rushCd }}</b>
             </div>
-            <span class="rush-remain" :class="{ urgent: remainSec <= 3 && remainSec > 0 }">{{ remainSec }}s</span>
-          </div>
+            <div v-else class="rush-banner" :class="rushPhase">
+              <b>{{ rushBanner[0] }}</b>
+              <small>{{ rushBanner[1] }}</small>
+            </div>
+            <!-- 名额进度（仅抢答窗口内） -->
+            <div v-if="store.status === 'RUSHING' && rushPhase !== 'claimed'" class="rush-meter">
+              <div class="rush-quota">
+                <div class="rush-quota-bar"><div class="rush-quota-fill" :style="{ width: rushQuotaPct }"></div></div>
+                <span>已抢 {{ store.rush_winners?.length || 0 }} / {{ rushTotal }}</span>
+              </div>
+              <span class="rush-remain" :class="{ urgent: remainSec <= 3 && remainSec > 0 }">{{ remainSec }}s</span>
+            </div>
+          </template>
         </div>
 
         <!-- 选项 -->
@@ -134,18 +152,40 @@
           </p>
         </div>
 
-        <!-- 时间到 -->
-        <div v-if="timeUp && !submitted" class="feedback bad">时间到，本题已自动提交</div>
+        <!-- 时间到（已选答案走 autoSubmit 补交，成功后 submitted=true 显示下方已提交提示） -->
+        <div v-if="timeUp && !submitted" class="feedback bad">
+          {{ selected.length ? '时间到，自动提交未成功，本题已收卷' : '时间到，本题已收卷，记为未答' }}
+        </div>
 
         <!-- 底部操作 -->
         <div class="actions">
           <div v-if="submitted" class="submitted-tip">已提交 · 等待{{ store.status === 'REVEALING' ? '公布答案' : '下一题' }}…</div>
           <template v-else-if="!timeUp && !optionsLocked">
-            <button v-if="!store.question.required" class="btn btn-ghost" @click="skip">跳过本题</button>
+            <button v-if="!store.question.required && !isRushQ" class="btn btn-ghost" @click="skip">跳过本题</button>
             <button class="btn btn-primary submit" :disabled="selected.length === 0" @click="submit">提交答案</button>
           </template>
         </div>
-      </section>
+          </section>
+
+          <!-- 右：题目索引卡（桌面端 sticky 固定，仅展示不可跳题） -->
+          <aside class="panel idx-panel" :class="{ open: indexOpen }">
+            <h3 class="idx-title">题目索引</h3>
+            <QuestionIndex
+              :total="store.question.total"
+              :current="store.question.index"
+              :states="qStates"
+            />
+            <div class="legend">
+              <span><i class="lg lg-cur"></i>进行中</span>
+              <span><i class="lg lg-ok"></i>答对</span>
+              <span><i class="lg lg-bad"></i>答错</span>
+              <span><i class="lg lg-ans"></i>已提交</span>
+              <span><i class="lg lg-miss"></i>漏答</span>
+              <span v-if="!isRushQ"><i class="lg lg-skip"></i>已跳过</span>
+            </div>
+          </aside>
+        </div>
+      </template>
 
       <!-- 排行榜：新标签页打开大屏排行榜 -->
       <div
@@ -175,6 +215,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import QuestionIndex from '../components/QuestionIndex.vue'
 import { QuizWS } from '../ws'
 import { Ev, type RankingItem, type RevealData, type AnswerResultData, type WSMessage } from '../ws/types'
 import { useQuizStore } from '../stores/quiz'
@@ -185,7 +226,7 @@ import { toast } from '../toast'
 const route = useRoute()
 const router = useRouter()
 const store = useQuizStore()
-const quizId = Number(route.params.id)
+const quizId = String(route.params.id || '')
 
 let ws: QuizWS | null = null
 let tickTimer: number | null = null
@@ -203,6 +244,37 @@ let cdTimer: number | null = null
 const lastResult = ref<AnswerResultData | null>(null)
 const ranking = ref<RankingItem[]>([])
 const result = ref<Record<string, any> | null>(null)
+/** 题目索引逐题状态：index(1-based) → correct/wrong/answered/missed/skipped */
+const qStates = ref<Record<number, string>>({})
+const indexOpen = ref(false) // 移动端索引折叠
+// 题目 id → 序号映射：WS 事件按 id 定位索引格，防主持人快速切题时错标
+const qidIndex = ref<Record<number, number>>({})
+// 本轮已了结的题（提交成功 / 主动跳过）：公布答案时用于区分「漏答」
+const doneQids = ref<Set<number>>(new Set())
+let qsKey = '' // qStates 本地持久化 key（onMounted 时按用户赋值，刷新/重连后恢复逐题对错）
+
+function saveQStates() {
+  if (qsKey) localStorage.setItem(qsKey, JSON.stringify(qStates.value))
+}
+function loadQStates(): boolean {
+  if (!qsKey) return false
+  try {
+    const v = JSON.parse(localStorage.getItem(qsKey) || 'null')
+    if (v && typeof v === 'object' && Object.keys(v).length) {
+      qStates.value = v
+      return true
+    }
+  } catch { /* ignore */ }
+  return false
+}
+/** 按题目 id 标记索引格状态（id 未知时退回当前题） */
+function markQ(qid: number | undefined | null, state: string, fallback?: number) {
+  const idx = (qid != null && qidIndex.value[qid]) || fallback
+  if (idx) {
+    qStates.value[idx] = state
+    saveQStates()
+  }
+}
 
 const rushTotal = ref(1)
 
@@ -226,12 +298,27 @@ const myReveal = computed(() => {
 const rushLocked = computed(
   () => store.status !== 'RUSHING' && (store.rush_winners?.length ?? 0) > 0 && store.my_rush_rank <= 0 && !revealed.value
 )
-/** 选项是否可操作（抢答未获答 / 窗口进行中且我未抢中） */
-const optionsLocked = computed(
-  () => rushLocked.value || (store.status === 'RUSHING' && !store.iAmWinner)
+/** 抢答题已发布但抢答尚未开启（管理员还没点「开始抢答」）：锁定作答并提示等待 */
+const awaitingRush = computed(
+  () =>
+    isRushQ.value &&
+    store.status === 'ANSWERING' &&
+    (store.rush_winners?.length ?? 0) === 0 &&
+    store.my_rush_rank <= 0 &&
+    !revealed.value
 )
-/** 是否为抢答题（窗口进行中，或已有获答名单） */
-const isRushQ = computed(() => store.status === 'RUSHING' || (store.rush_winners?.length ?? 0) > 0)
+/** 选项是否可操作（开抢前等待 / 抢答未获答 / 窗口进行中且我未抢中） */
+const optionsLocked = computed(
+  () => awaitingRush.value || rushLocked.value || (store.status === 'RUSHING' && !store.iAmWinner)
+)
+/** 是否为抢答题：rush 模式整场 / 非必答题（发布后未开抢也算，按钮与标签需立即切换）/ 窗口进行中 / 已有获答名单 */
+const isRushQ = computed(
+  () =>
+    store.quiz?.mode === 'rush' ||
+    store.question?.required === false ||
+    store.status === 'RUSHING' ||
+    (store.rush_winners?.length ?? 0) > 0
+)
 const rushQuotaPct = computed(() => Math.min(100, ((store.rush_winners?.length || 0) / (rushTotal.value || 1)) * 100) + '%')
 
 /** 抢答单一状态机（避免 boolean 拼接）：idle=非抢答场景 */
@@ -292,8 +379,37 @@ function syncRemain() {
   const now = Date.now() + serverOffset
   const r = store.deadline_at - now
   store.remainMs = Math.max(0, r)
-  if (r <= 0 && !submitted.value && !timeUp.value) {
-    timeUp.value = true
+  if (r <= 0) onTimeUp()
+}
+
+/** 到点统一入口（本地倒计时归零 / 服务端 remain_sec=0 广播）：已选未交自动补交，未选由服务端收卷记未答 */
+function onTimeUp() {
+  if (submitted.value || timeUp.value) return
+  // 暂停/等待/已结束/抢答窗口不在此处理：抢答窗口到期由 rush:end 驱动，暂停时 deadline 冻结（恢复后重算）
+  if (store.status !== 'ANSWERING' && store.status !== 'RUNNING') return
+  timeUp.value = true
+  if (store.question && selected.value.length > 0 && !optionsLocked.value) {
+    autoSubmit()
+  } else if (store.question) {
+    // 超时未作答：服务端会强制收卷记未答，索引同步标记
+    qStates.value[store.question.index] = 'missed'
+  }
+}
+
+/** 到点自动提交：把「已选未交」的答案补交（服务端 SubmitAnswer 允许 deadline+1.5s 宽限） */
+async function autoSubmit() {
+  const q = store.question
+  if (!q || submitted.value) return
+  submitted.value = true
+  try {
+    const r = await userApi.submitAnswer(q.id, selected.value.join(''), Date.now() - qPublishedAt)
+    lastResult.value = r
+    if (store.me) store.me.score = r.total_score
+    qStates.value[q.index] = r.is_correct ? 'correct' : 'wrong'
+  } catch {
+    // 竞态败给服务端收卷（已记未答）：回退展示并记未答，不弹错误打扰用户
+    submitted.value = false
+    qStates.value[q.index] = 'missed'
   }
 }
 
@@ -303,6 +419,8 @@ onMounted(async () => {
     router.replace('/join')
     return
   }
+  qsKey = `kaoshi_qstates_${quizId}_${localStorage.getItem(LS.userId(quizId)) || ''}`
+  loadQStates() // 刷新/重连时先恢复本地逐题状态（sync 事件会再叠加服务端信息）
 
   ws = new QuizWS({
     token,
@@ -327,6 +445,11 @@ function handleEvent(msg: WSMessage) {
       serverOffset = (d.server_now || Date.now()) - Date.now()
       store.applySync(d)
       resetQuestionUI()
+      if (d.question) qidIndex.value[d.question.id] = d.question.index
+      // 刷新/重连恢复：优先读本地缓存的逐题状态（对错保留）；无缓存才降级为「已提交」
+      if (!loadQStates() && !Object.keys(qStates.value).length && d.question) {
+        for (let i = 1; i < d.question.index; i++) qStates.value[i] = 'answered'
+      }
       if (d.status === 'FINISHED') loadResult()
       break
 
@@ -337,7 +460,14 @@ function handleEvent(msg: WSMessage) {
       store.deadline_at = d.deadline_at || 0
       store.status = d.status || 'ANSWERING'
       store.remainMs = d.deadline_at ? Math.max(0, d.deadline_at - Date.now() - serverOffset) : 0
+      if (d.question) qidIndex.value[d.question.id] = d.question.index
       resetQuestionUI()
+      // 活动重新开始（回到第1题）时清空上一轮的索引状态（含本地缓存）
+      if (store.question?.index === 1) {
+        qStates.value = {}
+        doneQids.value = new Set()
+        saveQStates()
+      }
       qPublishedAt = Date.now()
       break
 
@@ -348,15 +478,19 @@ function handleEvent(msg: WSMessage) {
       } else if (d.remain_sec !== undefined) {
         store.remainMs = d.remain_sec * 1000
       }
-      if (d.remain_sec === 0 && !submitted.value) timeUp.value = true
+      if (d.remain_sec === 0) onTimeUp()
       break
 
     case Ev.AnswerResult:
-      // 即时个人结果（无正确答案）
+      // 即时个人结果（无正确答案）；按题目 id 定位格子，防快速切题导致错标
       if (!d.revealed) {
         lastResult.value = d
         submitted.value = true
         if (store.me) store.me.score = d.total_score
+        if (d.question_id) {
+          doneQids.value.add(d.question_id)
+          markQ(d.question_id, d.is_correct ? 'correct' : 'wrong', store.question?.index)
+        }
       }
       break
 
@@ -364,13 +498,23 @@ function handleEvent(msg: WSMessage) {
       revealed.value = true
       reveal.value = d
       if (store.quiz) store.status = 'REVEALING'
+      // 未提交且未主动跳过的题 → 公布时标记漏答（未答者收不到个人单播，不能依赖 my_answer==='-'）
+      if (d.question_id && !doneQids.value.has(d.question_id)) markQ(d.question_id, 'missed', store.question?.index)
       // 补充个人对错（若提交过）
       if (lastResult.value) lastResult.value.revealed = true
       break
 
     case Ev.ActivityStart:
+      store.status = 'RUNNING'
+      break
     case Ev.ActivityResume:
       store.status = 'RUNNING'
+      // 恢复后服务端按剩余时长重算 deadline，先按 remain_ms 本地校正，
+      // 避免旧 deadline 在恢复瞬间误触 onTimeUp
+      if (d.remain_ms > 0) {
+        store.deadline_at = Date.now() + serverOffset + d.remain_ms
+        store.remainMs = d.remain_ms
+      }
       break
     case Ev.ActivityPause:
       store.status = 'PAUSED'
@@ -423,7 +567,10 @@ function handleEvent(msg: WSMessage) {
       store.deadline_at = d.answer_deadline_at || 0
       store.remainMs = d.answer_deadline_at ? Math.max(0, d.answer_deadline_at - Date.now() - serverOffset) : 0
       timeUp.value = false
-      if (!store.iAmWinner) submitted.value = true // 非获答者不再提交
+      if (!store.iAmWinner) {
+        submitted.value = true // 非获答者不再提交
+        if (store.question) qStates.value[store.question.index] = 'missed'
+      }
       break
   }
 }
@@ -493,6 +640,10 @@ async function submit() {
     const r = await userApi.submitAnswer(store.question.id, selected.value.join(''), Date.now() - qPublishedAt)
     lastResult.value = r
     if (store.me) store.me.score = r.total_score
+    // 本地即时标记（REST 响应即判分真相，不等 WS 单播；已了结的题 reveal 时不会被标漏答）
+    doneQids.value.add(store.question.id)
+    qStates.value[store.question.index] = r.is_correct ? 'correct' : 'wrong'
+    saveQStates()
   } catch (e: any) {
     submitted.value = false
     toast(e?.response?.data?.msg || '提交失败，请重试')
@@ -503,6 +654,11 @@ async function skip() {
   // 非必答题跳过：本地标记，等服务端发布下一题
   submitted.value = true
   lastResult.value = null
+  if (store.question) {
+    doneQids.value.add(store.question.id)
+    qStates.value[store.question.index] = 'skipped'
+    saveQStates()
+  }
 }
 
 async function loadResult() {
@@ -533,7 +689,7 @@ function formatDur(sec: number) {
 
 <style scoped>
 .quiz {
-  max-width: 680px;
+  max-width: 1080px;
   margin: 0 auto;
   min-height: 100vh;
   display: flex;
@@ -622,7 +778,7 @@ function formatDur(sec: number) {
   flex: 1;
   padding: 16px 16px 96px;
   width: 100%;
-  max-width: 680px;
+  max-width: 1080px;
   margin: 0 auto;
 }
 /* 底部固定抢答钮出现时，预留空间避免遮挡最后选项 */
@@ -659,6 +815,8 @@ function formatDur(sec: number) {
 .hero-panel {
   text-align: center;
   padding: 48px 24px;
+  max-width: 680px;
+  margin: 0 auto;
 }
 .big-avatar {
   width: 84px;
@@ -787,6 +945,109 @@ function formatDur(sec: number) {
 .q-panel {
   padding: 24px 20px;
 }
+/* 双栏布局：左题目卡 + 右题目索引（桌面） */
+.cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 16px;
+  align-items: start;
+}
+/* 右侧题目索引卡 */
+.idx-panel {
+  padding: 18px 16px;
+  position: sticky;
+  top: 76px;
+}
+.idx-title {
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+/* 状态图例 */
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-top: 14px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.lg {
+  width: 12px;
+  height: 12px;
+  border-radius: 4px;
+  display: inline-block;
+}
+.lg-cur {
+  background: var(--primary);
+}
+.lg-ok {
+  background: #34c759;
+}
+.lg-bad {
+  background: #ff3b30;
+}
+.lg-ans {
+  background: rgba(0, 113, 227, 0.08);
+  border: 1.5px solid var(--primary);
+}
+.lg-miss {
+  background: transparent;
+  border: 1.5px solid var(--border);
+}
+.lg-skip {
+  background: transparent;
+  border: 1.5px dashed var(--border);
+}
+/* 移动端索引折叠条（桌面隐藏） */
+.idx-toggle {
+  display: none;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  margin-bottom: 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+.idx-toggle i {
+  font-style: normal;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+@media (max-width: 960px) {
+  .cols {
+    grid-template-columns: 1fr;
+  }
+  .idx-toggle {
+    display: flex;
+  }
+  .idx-panel {
+    display: none;
+  }
+  .idx-panel.open {
+    display: block;
+    position: static;
+    margin-bottom: 12px;
+  }
+}
+/* 结束页逐题回顾 */
+.finish-qix {
+  display: flex;
+  justify-content: center;
+  margin-top: 22px;
+}
 .q-meta {
   display: flex;
   gap: 8px;
@@ -857,6 +1118,11 @@ function formatDur(sec: number) {
   background: #fafafa;
 }
 .rush-banner.missed b, .rush-banner.timeout b { color: #8c8c8c; }
+.rush-banner.waiting {
+  border-color: rgba(250, 173, 20, 0.45);
+  background: rgba(250, 173, 20, 0.07);
+}
+.rush-banner.waiting b { color: #faad14; }
 .rush-meter {
   display: flex;
   align-items: center;
