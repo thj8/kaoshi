@@ -84,7 +84,9 @@ npm run build               # 类型检查 + 构建（vue-tsc + vite）
 1. **服务端是唯一事实来源**：当前题目、状态、倒计时、得分、排名、抢答结果全部由服务端判定；客户端只渲染
 2. **正确答案绝不下发**：`Question.Answer`、`Analysis` 用 `json:"-"` 剥离；仅 `answer:reveal` 且 quiz 开启 `show_answer` 时才发送
 3. **防重复**：answers / rush_records 表的 `(quiz_id, question_id, user_id)` 唯一索引 + Redis 判重，双保险；分数只在首次提交时累加
-4. **倒计时以服务器时间为准**：下发 deadline 时间戳 + 服务端定时广播剩余秒数；到点服务端强制收卷
+4. **倒计时以服务器时间为准**：下发 deadline 时间戳 + 服务端定时广播剩余秒数；到点服务端强制收卷。
+   提交与收卷共用 deadline+1.5s 宽限：客户端到点自动补交「已选未交」的答案，
+   服务端收卷定时器延后 1.5s（`forceCollect` 的 `collectGrace`）避免抢先记未答挡掉在途补交——两侧宽限必须成对存在，勿单删
 5. **抢答原子性**：Redis Lua/ZSET 判序，按服务器收到时间排序，禁止使用客户端时间；`rank` 是 MySQL 8 保留字，SQL 中必须写 `` `rank` ``（反引号）
 6. **WS 消息协议**：`{event, data, ts}`，事件名对齐 docs/task.md 二十二节（`activity:* / question:* / answer:* / rush:* / ranking:update / statistics:update`）
 7. **状态机**：`WAITING / RUNNING / PAUSED / RUSHING / ANSWERING / REVEALING / FINISHED`，任何写操作先校验状态

@@ -26,7 +26,7 @@ const AnswerUnanswered = "-"
 
 // ---------- 状态流转 ----------
 
-// Start 开始答题：WAITING -> RUNNING 并发布第一题
+// Start 开始答题：WAITING -> RUNNING 并发布第一题（考试模式：不发布题目，统一下发全卷）
 func (e *Engine) Start(quizID int64) error {
 	rt, err := e.Get(quizID)
 	if err != nil {
@@ -39,6 +39,9 @@ func (e *Engine) Start(quizID int64) error {
 	}
 	if len(rt.questions) == 0 {
 		return errors.New("没有题目，无法开始")
+	}
+	if rt.quiz.Mode == model.ModeExam {
+		return e.startExamLocked(rt)
 	}
 	now := time.Now()
 	rt.quiz.Status = model.QuizStatusAnswering
@@ -59,6 +62,9 @@ func (e *Engine) Pause(quizID int64) error {
 	}
 	rt.mu.Lock()
 	defer rt.mu.Unlock()
+	if rt.quiz.Mode == model.ModeExam {
+		return errors.New("考试模式不支持暂停")
+	}
 	switch rt.quiz.Status {
 	case model.QuizStatusRushing:
 		return errors.New("抢答进行中，不可暂停")
@@ -85,6 +91,9 @@ func (e *Engine) Resume(quizID int64) error {
 	}
 	rt.mu.Lock()
 	defer rt.mu.Unlock()
+	if rt.quiz.Mode == model.ModeExam {
+		return errors.New("考试模式不支持暂停/继续")
+	}
 	if rt.quiz.Status != model.QuizStatusPaused {
 		return ErrNotRunning
 	}
@@ -109,6 +118,9 @@ func (e *Engine) Next(quizID int64) error {
 	}
 	rt.mu.Lock()
 	defer rt.mu.Unlock()
+	if rt.quiz.Mode == model.ModeExam {
+		return errors.New("考试模式无需逐题控制，请直接结束考试")
+	}
 	if rt.quiz.Status == model.QuizStatusWaiting {
 		return ErrNotWaiting
 	}
@@ -139,6 +151,9 @@ func (e *Engine) Previous(quizID int64) error {
 	}
 	rt.mu.Lock()
 	defer rt.mu.Unlock()
+	if rt.quiz.Mode == model.ModeExam {
+		return errors.New("考试模式无需逐题控制")
+	}
 	if rt.quiz.Status == model.QuizStatusWaiting || rt.quiz.Status == model.QuizStatusFinished {
 		return ErrNotRunning
 	}
@@ -161,6 +176,9 @@ func (e *Engine) Reveal(quizID int64) error {
 	}
 	rt.mu.Lock()
 	defer rt.mu.Unlock()
+	if rt.quiz.Mode == model.ModeExam {
+		return errors.New("考试模式不支持逐题公布答案")
+	}
 	if rt.curIndex < 0 || rt.curIndex >= len(rt.questions) {
 		return ErrNotRunning
 	}
@@ -247,10 +265,16 @@ func (e *Engine) End(quizID int64) error {
 	rt.quiz.EndedAt = &now
 	rt.mu.Unlock()
 
+	// 考试模式：收卷前从答题记录重算全部参与者成绩（答案可修改，participants.score 平时不实时更新）
+	if rt.quiz.Mode == model.ModeExam {
+		e.examRecomputeParticipants(quizID)
+	}
+
 	e.DB.Model(&model.Quiz{}).Where("id = ?", quizID).Updates(map[string]any{
 		"status": model.QuizStatusFinished, "ended_at": now,
 	})
-	e.DB.Model(&model.Participant{}).Where("quiz_id = ?", quizID).Update("finished_at", now)
+	// finished_at 仅补录未交卷者：考试模式主动交卷的时间戳要保留
+	e.DB.Model(&model.Participant{}).Where("quiz_id = ? AND finished_at IS NULL", quizID).Update("finished_at", now)
 
 	rank := e.buildRanking(quizID, 200)
 	payload := map[string]any{"ranking": rank}
@@ -327,10 +351,14 @@ func (e *Engine) publishLocked(rt *Runtime, idx int) error {
 		e.DB.Model(&model.Quiz{}).Where("id = ?", quizID).Update("status", model.QuizStatusAnswering)
 	}
 
-	// 倒计时
+	// 倒计时：抢答题（rush 模式全部题目 / 非必答题）发布时不启动答题倒计时——
+	// 由 rushEndLocked 在「有人抢到」后才启动（RushAnswerTime），开抢等待与抢答窗口不消耗答题时间
 	limit := q.TimeLimit
 	if limit <= 0 {
 		limit = rt.quiz.PerQuestionTime
+	}
+	if rt.quiz.Mode == model.ModeRush || !q.Required {
+		limit = 0
 	}
 	var deadline int64
 	if limit > 0 {
@@ -450,6 +478,9 @@ func (e *Engine) SubmitAnswer(quizID, questionID, userID int64, answer string, d
 
 	if rt.quiz.Status == model.QuizStatusFinished {
 		return nil, ErrAlreadyEnded
+	}
+	if rt.quiz.Mode == model.ModeExam {
+		return nil, errors.New("考试模式请在试卷中作答")
 	}
 	if rt.quiz.Status != model.QuizStatusAnswering {
 		return nil, errors.New("当前不可作答")

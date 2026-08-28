@@ -59,6 +59,9 @@ func (e *Engine) RushStart(quizID int64) error {
 	rt.mu.Lock()
 	defer rt.mu.Unlock()
 
+	if rt.quiz.Mode == model.ModeExam {
+		return errors.New("考试模式无抢答")
+	}
 	if !rt.quiz.RushEnabled {
 		return ErrRushDisabled
 	}
@@ -192,6 +195,10 @@ func (e *Engine) RushSubmit(quizID, questionID, userID int64) (result *ws.RushRe
 	}
 	rt.mu.Lock()
 	defer rt.mu.Unlock()
+
+	if rt.quiz.Mode == model.ModeExam {
+		return nil, errors.New("考试模式无抢答")
+	}
 
 	// 结果日志（defer 覆盖所有分支；发起日志在 handler，接口调用即记）
 	var u model.User

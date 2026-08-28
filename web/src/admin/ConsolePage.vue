@@ -36,8 +36,17 @@
 
       <!-- 中：当前题 -->
       <div class="card panel mid">
-        <div v-if="!curQuestion" class="text-dim" style="text-align: center; padding: 60px 0">
-          {{ status === 'WAITING' ? '等待开始，点击底部「开始答题」发布第 1 题' : '等待发布题目' }}
+        <div v-if="isExam && status === 'RUNNING'" class="text-dim" style="text-align: center; padding: 60px 24px">
+          <div style="font-size: 40px; margin-bottom: 12px">📝</div>
+          <div style="font-size: 16px; font-weight: 700; color: var(--text); margin-bottom: 8px">考试进行中（自由切题模式）</div>
+          <div style="font-size: 13px; line-height: 1.8">
+            全卷已统一下发，参与者自由前后切题、选择即自动保存<br />
+            到「总答题时间」或点击底部「结束考试」时统一收卷计分<br />
+            实时作答进度可在「统计」页查看
+          </div>
+        </div>
+        <div v-else-if="!curQuestion" class="text-dim" style="text-align: center; padding: 60px 0">
+          {{ status === 'WAITING' ? (isExam ? '等待开始，点击底部「开始考试」下发全卷' : '等待开始，点击底部「开始答题」发布第 1 题') : '等待发布题目' }}
         </div>
         <template v-else>
           <div class="q-meta">
@@ -115,16 +124,21 @@
 
     <!-- 底部控制 -->
     <div class="card controls">
-      <button class="btn btn-ghost" :disabled="curIndex <= 0 || status === 'WAITING'" @click="ctrl('previous')">← 上一题</button>
-      <button v-if="status === 'WAITING'" class="btn btn-primary big" @click="ctrl('start')">▶ 开始答题</button>
-      <button v-if="status === 'PAUSED'" class="btn btn-primary big" @click="ctrl('resume')">▶ 继续</button>
-      <button v-if="canRush" class="btn big" style="background: linear-gradient(135deg, #ff7062, #e0404f)" @click="ctrl('rush/start')">⚡ 开始抢答</button>
-      <button v-if="status === 'RUSHING'" class="btn btn-ghost" style="color: var(--warn)" @click="ctrl('rush/end')">■ 结束抢答</button>
-      <button v-if="curQuestion?.required && status === 'ANSWERING'" class="btn btn-ghost" style="color: var(--success)" @click="ctrl('reveal')">📢 显示答案</button>
-      <button v-if="status === 'ANSWERING' || status === 'REVEALING'" class="btn btn-ghost" style="color: var(--warn)" @click="ctrl('pause')">⏸ 暂停</button>
-      <button v-if="status !== 'WAITING' && status !== 'FINISHED'" class="btn btn-primary big" @click="ctrl('next')">下一题 →</button>
+      <template v-if="!isExam">
+        <button class="btn btn-ghost" :disabled="curIndex <= 0 || status === 'WAITING'" @click="ctrl('previous')">← 上一题</button>
+      </template>
+      <button v-if="status === 'WAITING'" class="btn btn-primary big" @click="ctrl('start')">▶ {{ isExam ? '开始考试' : '开始答题' }}</button>
+      <template v-if="!isExam">
+        <button v-if="status === 'PAUSED'" class="btn btn-primary big" @click="ctrl('resume')">▶ 继续</button>
+        <button v-if="canRush" class="btn big" style="background: linear-gradient(135deg, #ff7062, #e0404f)" @click="ctrl('rush/start')">⚡ 开始抢答</button>
+        <button v-if="status === 'RUSHING'" class="btn btn-ghost" style="color: var(--warn)" @click="ctrl('rush/end')">■ 结束抢答</button>
+        <button v-if="curQuestion?.required && status === 'ANSWERING'" class="btn btn-ghost" style="color: var(--success)" @click="ctrl('reveal')">📢 显示答案</button>
+        <button v-if="status === 'ANSWERING' || status === 'REVEALING'" class="btn btn-ghost" style="color: var(--warn)" @click="ctrl('pause')">⏸ 暂停</button>
+      </template>
+      <button v-if="!isExam && status !== 'WAITING' && status !== 'FINISHED'" class="btn btn-primary big" @click="ctrl('next')">下一题 →</button>
+      <button v-if="isExam && status === 'RUNNING'" class="btn btn-danger big" @click="ctrl('end')">■ 结束考试（统一收卷）</button>
       <button v-if="status !== 'WAITING'" class="btn btn-danger" @click="ctrl('reset')" title="清空答题/抢答记录与成绩，活动回到未开始">↺ 重置比赛</button>
-      <span v-if="status === 'FINISHED'" class="text-dim" style="padding: 10px">答题已结束</span>
+      <span v-if="status === 'FINISHED'" class="text-dim" style="padding: 10px">考试已结束</span>
     </div>
   </div>
 </template>
@@ -169,6 +183,8 @@ const canRush = computed(
     !curQuestion.value?.required &&
     (rushWinners.value?.length ?? 0) === 0
 )
+/** 考试（自由切题）模式：无逐题控制 */
+const isExam = computed(() => quiz.value?.mode === 'exam')
 const statusText = computed(() => ({ WAITING: '未开始', RUNNING: '进行中', PAUSED: '已暂停', RUSHING: '抢答中', ANSWERING: '答题中', REVEALING: '公布答案', FINISHED: '已结束' } as Record<string, string>)[status.value] || status.value)
 
 /** 获答者提交的答案：抢答题 distribution 的非“-”键即其作答 */

@@ -18,7 +18,7 @@
         </div>
         <p class="text-dim" style="margin: 8px 0; font-size: 13px; min-height: 18px">{{ q.description || '—' }}</p>
         <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px">
-          <span class="tag">{{ q.mode === 'rush' ? '抢答模式' : '普通模式' }}</span>
+          <span class="tag">{{ q.mode === 'rush' ? '抢答模式' : q.mode === 'exam' ? '考试模式' : '普通模式' }}</span>
           <button class="tag link-tag" style="cursor: pointer" title="点击复制加入链接" @click="copyLink(q.code)">
             🔗 加入链接 <b style="color: var(--primary)">{{ joinLink(q.code) }}</b>
           </button>
@@ -66,8 +66,9 @@
           <div class="frow">
             <label>答题模式 *</label>
             <select v-model="form.mode" class="input">
-              <option value="normal">普通模式（全员作答）</option>
+              <option value="normal">普通模式（逐题发布，全员作答）</option>
               <option value="rush">抢答模式（先抢先答）</option>
+              <option value="exam">考试模式（自由切题，统一交卷）</option>
             </select>
           </div>
           <div class="frow">

@@ -36,9 +36,11 @@ func (h *Handler) QuizBrief(c *gin.Context) {
 	h.DB.Model(&model.Participant{}).Where("quiz_id = ?", quiz.ID).Count(&count)
 	ok(c, gin.H{
 		"id":                quiz.ID,
-		"code":             quiz.Code,
+		"code":              quiz.Code,
+		"title":             quiz.Title,
 		"description":       quiz.Description,
 		"status":            quiz.Status,
+		"mode":              quiz.Mode,
 		"participant_count": count,
 	})
 }

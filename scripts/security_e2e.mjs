@@ -18,6 +18,7 @@ let pass = 0, fail = 0
 const check = (name, ok, extra = '') => { ok ? pass++ : fail++; console.log(`${ok ? '✅' : '❌'} ${name}${extra ? '  ' + extra : ''}`) }
 const leakSecret = s => /"correct_answer"\s*:\s*"[^"]+"/.test(s) || /"analysis"\s*:\s*"[^"]+"/.test(s)
 const leak = s => leakSecret(s) || /"answer"\s*:\s*"[A-D]"/.test(s)
+const createdQuizzes = [], createdUsers = [] // 本场创建的资源，结尾统一清理
 
 function connect(token, onMsg) {
   return new Promise((res, rej) => {
@@ -30,6 +31,8 @@ function connect(token, onMsg) {
 }
 
 ;(async () => {
+  let at = null
+  try {
   // ---------- 0. 清理数据库 + Redis（仅 CLEAN=1 时执行，保护测试/模拟数据） ----------
   if (process.env.CLEAN === '1') {
     try {
@@ -43,14 +46,16 @@ function connect(token, onMsg) {
     }
   }
 
-  let at = null
   for (let i = 0; i < 30 && !at; i++) {
     try { at = (await j('POST', '/api/admin/login', { username: 'admin', password: ADMIN_PASS })).data.token } catch { await sleep(1000) }
   }
   if (!at) throw new Error('admin 登录失败（server 未就绪？）')
-
   // ---------- 数据准备 ----------
-  const mkQ = (title, mode, extra = {}) => j('POST', '/api/admin/quiz', { title, mode, per_question_time: 60, rush_time: 15, rush_answer_time: 20, rush_bonus_score: 5, ...extra }, at)
+  const mkQ = async (title, mode, extra = {}) => {
+    const r = await j('POST', '/api/admin/quiz', { title, mode, per_question_time: 60, rush_time: 15, rush_answer_time: 20, rush_bonus_score: 5, ...extra }, at)
+    if (r.code === 0) createdQuizzes.push(r.data.code)
+    return r
+  }
   const mkQs = (id, q) => j('POST', `/api/admin/quiz/${id}/questions`, q, at)
   const opts = labels => labels.map((l, i) => ({ label: l, content: `选项${l}` }))
 
@@ -64,6 +69,7 @@ function connect(token, onMsg) {
 
   const reg = async (u, n) => { // 注册已下线：admin 建号 + 登录
     await j('POST', '/api/admin/users', { username: u, password: 'test-pass-1234', nickname: n }, at)
+    createdUsers.push(u)
     return (await j('POST', '/api/auth/login', { username: u, password: 'test-pass-1234' })).data
   }
   const sfx = Date.now() % 100000
@@ -86,13 +92,13 @@ function connect(token, onMsg) {
 
   // ---------- 1a. 失效身份：用户被删后旧 token 提交必须被拒（防孤儿答案/总分 0）
   const ghost = await reg(`ghost${sfx}`, '幽灵')
-  const jG = (await j('POST', '/api/join', { quiz_id: quizN.code }, ghost.token)).data
+  const jGrace = (await j('POST', '/api/join', { quiz_id: quizN.code }, ghost.token)).data
   await j('POST', `/api/admin/quiz/${quizN.code}/start`, {}, at); await sleep(300)
   const uId = JSON.parse(Buffer.from(ghost.token.split('.')[1], 'base64').toString()).uid
   await j('DELETE', `/api/admin/users/${uId}`, null, at) // 删用户（级联 participants/answers）
-  const ghostAns = await j('POST', `/api/question/${qN.id}/answer`, { answer: 'A', duration: 100 }, jG.token)
+  const ghostAns = await j('POST', `/api/question/${qN.id}/answer`, { answer: 'A', duration: 100 }, jGrace.token)
   check('C9 失效 token（用户已删）提交被拒', ghostAns.code !== 0, `code=${ghostAns.code} msg=${ghostAns.msg}`)
-  const ghostRush = await j('POST', `/api/question/${qN.id}/rush`, {}, jG.token)
+  const ghostRush = await j('POST', `/api/question/${qN.id}/rush`, {}, jGrace.token)
   check('C10 失效 token 抢答被拒', ghostRush.code !== 0, `code=${ghostRush.code} msg=${ghostRush.msg}`)
   await j('POST', `/api/admin/quiz/${quizN.code}/reset`, {}, at) // 恢复 WAITING 供后续用例
 
@@ -273,7 +279,43 @@ function connect(token, onMsg) {
   check('C8 倒计时超时(含宽限)后提交被拒', late.code !== 0, `code=${late.code} msg=${late.msg}`)
   await j('POST', `/api/admin/quiz/${quizT.code}/end`, {}, at)
 
-  for (const id of [quizR.code, quizN.code, quizF.code, quizS.code, quizT.code]) await j('DELETE', `/api/admin/quiz/${id}`, null, at)
+  // C11 到点宽限内补交被接受：前端「时间到自动补交已选答案」的服务端契约。
+  // 收卷定时器同样延后 1.5s：deadline+~0.3s 的在途提交必须成功，且后续收卷不得把它覆盖为“未答”。
+  const quizC11 = (await mkQ('sec-grace', 'normal', { show_answer: true })).data
+  const qC11 = (await mkQs(quizC11.code, { type: 'single', content: '宽限?', answer: 'A', score: 10, required: true, time_limit: 2, options: opts(['A', 'B']) })).data
+  const jC11 = (await j('POST', '/api/join', { quiz_id: quizC11.code }, bob.token)).data
+  await j('POST', `/api/admin/quiz/${quizC11.code}/start`, {}, at)
+  await sleep(2300) // 2s 题 + ~0.3s：模拟客户端到点自动补交
+  const ingrace = await j('POST', `/api/question/${qC11.id}/answer`, { answer: 'A', duration: 100 }, jC11.token)
+  check('C11 到点宽限(1.5s)内补交被接受', ingrace.code === 0 && ingrace.data?.is_correct === true, `code=${ingrace.code} msg=${ingrace.msg}`)
+  await sleep(1500) // 越过宽限，等服务端收卷完成
+  await j('POST', `/api/admin/quiz/${quizC11.code}/end`, {}, at)
+  const resC11 = (await j('GET', `/api/quiz/${quizC11.code}/result`, null, jC11.token)).data
+  check('C11b 收卷不覆盖已补交答案', resC11.correct === 1 && resC11.wrong === 0, JSON.stringify(resC11))
+
+  } finally {
+    // ---------- 清理本场测试数据（断言失败同样执行；只动本场创建的赛与用户） ----------
+    let dq = 0, du = 0
+    for (const code of createdQuizzes) {
+      try {
+        let r = await j('DELETE', `/api/admin/quiz/${code}`, null, at)
+        if (r.code !== 0) { // RUNNING 等状态先结束再删
+          await j('POST', `/api/admin/quiz/${code}/end`, {}, at)
+          r = await j('DELETE', `/api/admin/quiz/${code}`, null, at)
+        }
+        if (r.code === 0) dq++
+      } catch {}
+    }
+    try {
+      const users = (await j('GET', '/api/admin/users', null, at)).data || []
+      const byName = new Map(users.map(u => [u.username, u.id]))
+      for (const name of createdUsers) {
+        const id = byName.get(name)
+        if (id && (await j('DELETE', `/api/admin/users/${id}`, null, at)).code === 0) du++ // 级联清 participants/answers
+      }
+    } catch {}
+    console.log(`🧹 已清理测试数据：比赛 ${dq}/${createdQuizzes.length} 场、用户 ${du}/${createdUsers.length} 个`)
+  }
   console.log(`\n${fail === 0 ? 'ALL PASS' : 'HAS FAILURES'}: ${pass} passed, ${fail} failed`)
   process.exit(fail === 0 ? 0 : 1)
 })().catch(e => { console.error('FAIL:', e.message); process.exit(1) })

@@ -72,7 +72,7 @@ func (h *Handler) Login(c *gin.Context) {
 type quizReq struct {
 	Title           string `json:"title" binding:"required,max=128"`
 	Description     string `json:"description"`
-	Mode            string `json:"mode" binding:"required,oneof=normal rush"`
+	Mode            string `json:"mode" binding:"required,oneof=normal rush exam"`
 	TotalTime       int    `json:"total_time" binding:"min=0"`
 	PerQuestionTime int    `json:"per_question_time" binding:"min=0,max=600"`
 	RushEnabled     *bool  `json:"rush_enabled"`

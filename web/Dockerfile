@@ -9,7 +9,9 @@ ARG VITE_WS_BASE
 ENV VITE_API_BASE=$VITE_API_BASE
 ENV VITE_WS_BASE=$VITE_WS_BASE
 COPY package.json package-lock.json .npmrc ./
-RUN npm ci
+# 可选：内网 registry（docker compose build --build-arg NPM_REGISTRY=http://...）
+ARG NPM_REGISTRY=""
+RUN if [ -n "$NPM_REGISTRY" ]; then npm config set registry "$NPM_REGISTRY"; fi && npm ci
 COPY . .
 RUN npm run build
 

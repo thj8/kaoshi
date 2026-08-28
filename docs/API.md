@@ -78,7 +78,8 @@
 ```
 - 多选题乱序等价（"CA" == "AC"）；非法选项返回 400
 - 状态校验：WAITING/FINISHED/REVEALING/非当前题均拒绝
-- 倒计时以服务器 deadline 为准，超时（含 1.5s 网络宽限）拒绝
+- 倒计时以服务器 deadline 为准，超时（含 1.5s 网络宽限）拒绝；收卷同宽限延后 1.5s，
+  客户端到点自动补交「已选未交」的答案（宽限内到达即判分，收卷不会将其覆盖为未答）
 - 抢答题：必须有抢答记录（RushRecord），否则 400「未获得本题答题资格」
 `data: {"is_correct":true,"score":10,"answer":"AC"}` —— **不含正确答案**（是否公布走 reveal）
 
@@ -176,7 +177,7 @@ new WebSocket('ws://host/ws?quiz=<比赛码>', [adminToken]) // 管理端（?qui
 | `activity:start / pause / resume / end` | 广播 | 活动生命周期 |
 | `question:publish` | 广播 | 发布题目（含 deadline_at/server_now，**无答案**） |
 | `question:countdown` | 广播 | 剩余秒数（服务器时间权威） |
-| `question:force-collected` | 广播 | 到点强制收卷 |
+| `question:countdown`（remain_sec=0） | 广播 | 到点收卷信号（无独立收卷事件，统计走 `statistics:update`） |
 | `answer:result` | 单播 | 本人提交结果（无正确答案） |
 | `answer:reveal` | 广播+单播 | 公共事件无答案；本人单播含 my_answer/my_score/is_correct；correct_answer 仅 quiz 开 show_answer 且只进本人单播；管理端连接收全量（含 distribution） |
 | `rush:start / rush:end` | 广播 | 抢答窗口开/关 |

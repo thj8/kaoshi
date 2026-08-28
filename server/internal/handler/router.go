@@ -58,6 +58,12 @@ func Register(r *gin.Engine, cfg *config.Config, db *gorm.DB, rdb *redis.Client)
 		user.POST("/question/:id/rush", answerH.Rush)
 		user.GET("/quiz/:id/ranking", answerH.Ranking)
 		user.GET("/quiz/:id/result", answerH.Result)
+
+		// 考试（自由切题）模式
+		paperH := api.NewPaper(db, eng)
+		user.GET("/quiz/:id/paper", paperH.Paper)
+		user.POST("/quiz/:id/paper/answer", paperH.SavePaperAnswer)
+		user.POST("/quiz/:id/paper/submit", paperH.SubmitPaper)
 	}
 
 	// 管理端

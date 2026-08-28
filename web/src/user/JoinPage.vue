@@ -97,8 +97,12 @@ const STATUS: Record<string, string> = {
 }
 const statusText = (st: string) => STATUS[st] || st
 
-/** 已结束 → 回看成绩/排行；进行中 → 回到答题页 */
-async function goMine(m: { code: string; status: string }) {
+/** 已结束 → 回看成绩/排行；进行中 → 回到答题页（考试模式走 /exam） */
+function examPath(m: { code: string; mode?: string; status: string }): string | null {
+  return m.mode === 'exam' ? `/exam/${m.code}` : null
+}
+
+async function goMine(m: { code: string; mode?: string; status: string }) {
   joining.value = true
   err.value = ''
   try {
@@ -108,6 +112,11 @@ async function goMine(m: { code: string; status: string }) {
       localStorage.setItem(LS.userToken(quiz.code), token)
       localStorage.setItem(LS.userId(quiz.code), String(user.id))
       localStorage.setItem(LS.nickname(quiz.code), user.nickname)
+    }
+    const exam = examPath({ code: m.code, mode: m.mode, status: m.status })
+    if (exam) {
+      router.replace(exam)
+      return
     }
     router.replace(m.status === 'FINISHED' ? `/rank/${m.code}` : `/quiz/${m.code}`)
   } catch (e: any) {
@@ -164,9 +173,10 @@ async function go(quizId: string) {
   joining.value = true
   err.value = ''
   try {
-    // 已有答题 token 直接进
+    // 已有答题 token 直接进（brief 补查模式，考试走 /exam）
     if (localStorage.getItem(LS.userToken(quizId))) {
-      router.replace(`/quiz/${quizId}`)
+      const brief = await userApi.quizBrief(quizId).catch(() => null)
+      router.replace(brief?.mode === 'exam' ? `/exam/${quizId}` : `/quiz/${quizId}`)
       return
     }
     // 加入换取答题 token
@@ -174,7 +184,7 @@ async function go(quizId: string) {
     localStorage.setItem(LS.userToken(quiz.code), token)
     localStorage.setItem(LS.userId(quiz.code), String(user.id))
     localStorage.setItem(LS.nickname(quiz.code), user.nickname)
-    router.replace(`/quiz/${quiz.code}`)
+    router.replace(quiz.mode === 'exam' ? `/exam/${quiz.code}` : `/quiz/${quiz.code}`)
   } catch (e: any) {
     joining.value = false
     err.value = e?.response?.data?.msg || '加入失败'

@@ -40,8 +40,9 @@ const (
 
 // 答题模式
 const (
-	ModeNormal = "normal" // 普通模式：全员逐题作答
-	ModeRush   = "rush"   // 抢答模式
+	ModeNormal = "normal" // 普通模式：管理员逐题发布，全员逐题作答
+	ModeRush   = "rush"   // 抢答模式：先抢先答
+	ModeExam   = "exam"   // 考试模式：全卷一次性下发，统一时长，自由前后切题，交卷/到时统一收卷
 )
 
 // 答题活动

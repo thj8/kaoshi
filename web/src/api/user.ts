@@ -34,6 +34,39 @@ export function globalToken(): string {
   return localStorage.getItem(LS.userGlobalToken) || ''
 }
 
+export interface PaperQuestion {
+  id: number
+  index: number
+  type: 'single' | 'multiple' | 'judge'
+  content: string
+  score: number
+  options: { label: string; content: string }[]
+  my_answer: string | null
+}
+
+export interface Paper {
+  title: string
+  mode: string
+  status: string
+  total: number
+  question_count: number // 真实题数（WAITING 时 total=0 防提前看题，仅下发数量）
+  deadline_at: number
+  server_now: number
+  submitted: boolean
+  score: number
+  questions: PaperQuestion[]
+}
+
+export interface PaperSummary {
+  score: number
+  answered: number
+  total: number
+  correct: number
+  wrong: number
+  rank: number
+  finished: boolean
+}
+
 export const userApi = {
   async quizList(): Promise<{ items: { id: number; code: string; title: string; description: string; mode: string; participant_count: number; joined: boolean }[] }> {
     return unwrap(await http.get('/api/quizzes', { headers: { Authorization: `Bearer ${globalToken()}` } }))
@@ -59,7 +92,7 @@ export const userApi = {
     )
   },
   async quizBrief(quizId: string) {
-    return unwrap<{ id: number; code: string; title: string; description: string; status: string; participant_count: number }>(
+    return unwrap<{ id: number; code: string; title: string; description: string; status: string; mode: string; participant_count: number }>(
       await http.get(`/api/quiz/${quizId}/brief`)
     )
   },
@@ -106,9 +139,33 @@ export const userApi = {
       await http.get(`/api/quiz/${quizId}/result`, { headers: { Authorization: `Bearer ${token}` } })
     )
   },
+  /** ===== 考试（自由切题）模式 ===== */
+  async paper(quizId: string) {
+    const token = localStorage.getItem(LS.userToken(quizId)) || ''
+    return unwrap<Paper>(
+      await http.get(`/api/quiz/${quizId}/paper`, { headers: { Authorization: `Bearer ${token}` } })
+    )
+  },
+  /** 选择即保存（可反复修改，直到交卷/到时） */
+  async savePaperAnswer(quizId: string, questionId: number, answer: string, durationMs = 0) {
+    const token = localStorage.getItem(LS.userToken(quizId)) || ''
+    return unwrap<{ answered: number; total: number }>(
+      await http.post(
+        `/api/quiz/${quizId}/paper/answer`,
+        { question_id: questionId, answer, duration: durationMs },
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+    )
+  },
+  async submitPaper(quizId: string) {
+    const token = localStorage.getItem(LS.userToken(quizId)) || ''
+    return unwrap<PaperSummary>(
+      await http.post(`/api/quiz/${quizId}/paper/submit`, {}, { headers: { Authorization: `Bearer ${token}` } })
+    )
+  },
 }
 
 function quizIdFromPath(): string {
-  const m = location.pathname.match(/\/quiz\/([0-9a-z]+)/)
-  return m ? m[1] : ''
+  const m = location.pathname.match(/\/(quiz|exam)\/([0-9a-z]+)/)
+  return m ? m[2] : ''
 }

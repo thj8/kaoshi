@@ -3,6 +3,7 @@ package engine
 import (
 	"log"
 	"sync"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
@@ -78,6 +79,21 @@ func (e *Engine) Get(quizID int64) (*Runtime, error) {
 // 重启视为异常，题目停在当前题，由管理员手动 next/previous/reveal 继续，避免重启瞬间全体强制收卷）
 func (e *Engine) recoverRuntime(rt *Runtime) {
 	q := rt.quiz
+	// 考试模式：按 started_at + total_time 重新武装全局倒计时（到时自动收卷）
+	if q.Mode == model.ModeExam && q.Status == model.QuizStatusRunning && q.StartedAt != nil && q.TotalTime > 0 {
+		endAt := q.StartedAt.Add(time.Duration(q.TotalTime) * time.Second)
+		remain := time.Until(endAt)
+		if remain <= 0 {
+			// 已到时：异步收卷（此处处于 Get 的引擎锁内，不能同步调 End→Get）
+			go e.End(q.ID)
+		} else {
+			rt.deadline = endAt.UnixMilli()
+			rt.startTimer(remain, func() { e.End(q.ID) })
+			rt.startTickerLocked(0)
+		}
+		log.Printf("[engine] quiz %d 考试恢复: 剩余 %s", q.ID, remain)
+		return
+	}
 	switch q.Status {
 	case model.QuizStatusAnswering, model.QuizStatusRevealing, model.QuizStatusRushing:
 		// 找到最近一道已有作答记录的题作为恢复位置；若无则从第 1 题重发

@@ -25,7 +25,7 @@ export interface Quiz {
   title: string
   description: string
   status: string
-  mode: 'normal' | 'rush'
+  mode: 'normal' | 'rush' | 'exam'
   total_time: number
   per_question_time: number
   rush_enabled: boolean

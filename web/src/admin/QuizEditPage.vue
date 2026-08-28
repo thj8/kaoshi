@@ -62,6 +62,20 @@
               <input v-model="cfgForm.title" class="input" :disabled="quiz.status !== 'WAITING'" />
             </div>
             <div class="frow">
+              <label>答题模式</label>
+              <select v-model="cfgForm.mode" class="input" :disabled="quiz.status !== 'WAITING'">
+                <option value="normal">普通模式（逐题发布，全员作答）</option>
+                <option value="rush">抢答模式（先抢先答）</option>
+                <option value="exam">考试模式（自由切题，统一交卷）</option>
+              </select>
+            </div>
+            <div v-if="cfgForm.mode === 'exam'" class="frow">
+              <label></label>
+              <p class="text-dim" style="font-size: 12px; margin-top: -6px">
+                考试模式：全卷一次性下发，用户自由前后切题、选择即保存，到「总答题时间」或手动结束时统一收卷计分
+              </p>
+            </div>
+            <div class="frow">
               <label>每题答题时间（秒）</label>
               <input v-model.number="cfgForm.per_question_time" class="input" type="number" min="5" max="600" :disabled="quiz.status !== 'WAITING'" />
             </div>
