@@ -39,7 +39,7 @@
       <template v-else-if="examVisible && curQ">
         <!-- 移动端索引折叠条 -->
         <button class="idx-toggle" @click="indexOpen = !indexOpen">
-          <span>题目索引 · 已答 {{ answeredCount }}/{{ paper!.total }} · 标记 {{ markedCount }}</span>
+          <span>题目索引 · 已答 {{ answeredCount }}/{{ paper!.total }}</span>
           <i>{{ indexOpen ? '收起 ▲' : '展开 ▼' }}</i>
         </button>
 
@@ -49,9 +49,6 @@
             <div class="q-meta">
               <span class="tag">{{ typeText(curQ.type) }}</span>
               <span class="tag">{{ curQ.score }} 分</span>
-              <button class="mark-btn" :class="{ on: marks[curQ.id] }" @click="toggleMark(curQ.id)">
-                {{ marks[curQ.id] ? '★ 已标记' : '☆ 标记本题' }}
-              </button>
             </div>
             <h2 class="q-content">{{ curQ.content }}</h2>
 
@@ -89,7 +86,7 @@
                 v-for="(q, i) in paper!.questions"
                 :key="q.id"
                 class="qix-box"
-                :class="{ done: (answers[q.id]?.length ?? 0) > 0, mark: marks[q.id], cur: i === curIndex }"
+                :class="{ done: (answers[q.id]?.length ?? 0) > 0, cur: i === curIndex }"
                 @click="go(i)"
               >{{ i + 1 }}</button>
             </div>
@@ -97,7 +94,6 @@
               <span><i class="lg lg-todo"></i>未答</span>
               <span><i class="lg lg-done"></i>已答</span>
               <span><i class="lg lg-cur"></i>当前题</span>
-              <span><i class="lg lg-mark"></i>已标记</span>
             </div>
             <button class="btn submit-all" @click="askSubmit">交卷</button>
           </aside>
@@ -188,7 +184,6 @@ const status = ref('WAITING')
 const paper = ref<Paper | null>(null)
 const curIndex = ref(0)
 const answers = ref<Record<number, string[]>>({})
-const marks = ref<Record<number, boolean>>({})
 const indexOpen = ref(false)
 
 const submitted = ref(false)
@@ -217,25 +212,10 @@ const answeredCount = computed(
   () => paper.value?.questions.filter((q) => (answers.value[q.id]?.length ?? 0) > 0).length ?? 0
 )
 const unanswered = computed(() => (paper.value?.total ?? 0) - answeredCount.value)
-const markedCount = computed(() => Object.values(marks.value).filter(Boolean).length)
 const remainText = computed(() => {
   if (deadlineAt.value <= 0) return ''
   return formatHMS(Math.ceil(remainMs.value / 1000))
 })
-
-// ---------- 标记（本地持久化，橙色状态） ----------
-const marksKey = `kaoshi_exam_marks_${quizId}_${localStorage.getItem(LS.userId(quizId)) || ''}`
-function loadMarks() {
-  try {
-    marks.value = JSON.parse(localStorage.getItem(marksKey) || '{}')
-  } catch {
-    marks.value = {}
-  }
-}
-function toggleMark(id: number) {
-  marks.value[id] = !marks.value[id]
-  localStorage.setItem(marksKey, JSON.stringify(marks.value))
-}
 
 // ---------- 计时 ----------
 function syncRemain() {
@@ -270,7 +250,6 @@ async function loadPaper() {
     const a: Record<number, string[]> = {}
     for (const q of p.questions) a[q.id] = q.my_answer ? q.my_answer.split('') : []
     answers.value = a
-    loadMarks()
     if (curIndex.value >= p.questions.length) curIndex.value = 0
   } catch {
     /* WAITING / 未加入等场景静默，等待 WS 事件驱动 */
@@ -420,7 +399,6 @@ onMounted(async () => {
   nick.value = localStorage.getItem(LS.nickname(quizId)) || localStorage.getItem(LS.userNick) || '我'
   meId.value = Number(localStorage.getItem(LS.userId(quizId)) || 0)
   loadPaper() // 直接拉全卷（含已存答案），WS 只负责状态/倒计时
-  loadMarks()
 
   ws = new QuizWS({
     token,
@@ -658,30 +636,12 @@ onUnmounted(() => {
   align-items: center;
 }
 .tag {
-  font-size: 12px;
+  font-size: 24px;
   font-weight: 600;
   color: var(--primary);
   background: rgba(0, 113, 227, 0.08);
   border-radius: 999px;
-  padding: 4px 12px;
-}
-.mark-btn {
-  margin-left: auto;
-  border: 1.5px solid var(--border);
-  background: var(--card);
-  color: var(--text-dim);
-  font-size: 13px;
-  font-weight: 600;
-  font-family: inherit;
-  border-radius: 999px;
-  padding: 4px 14px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-.mark-btn.on {
-  color: #fa8c16;
-  border-color: rgba(250, 140, 22, 0.65);
-  background: rgba(250, 140, 22, 0.08);
+  padding: 6px 16px;
 }
 .q-content {
   font-size: 21px;
@@ -822,27 +782,12 @@ onUnmounted(() => {
   border-color: var(--primary);
   color: #fff;
 }
-/* 已标记：橙色边框 + 橙色角标 */
-.qix-box.mark {
-  border-color: #fa8c16;
-}
-.qix-box.mark::after {
-  content: '';
-  position: absolute;
-  right: 3px;
-  top: 3px;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #fa8c16;
-}
-.qix-box.mark:not(.done) {
-  color: #fa8c16;
-}
 /* 当前题：蓝色高亮描边 */
 .qix-box.cur {
-  box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.28);
+  /* 白色外圈 + 蓝色光晕：已答（蓝底）时也清晰可辨 */
+  box-shadow: 0 0 0 2.5px #fff, 0 0 0 6px rgba(0, 113, 227, 0.55);
   transform: scale(1.06);
+  z-index: 1;
 }
 .qix-box.cur:not(.done) {
   border-color: var(--primary);
@@ -881,11 +826,6 @@ onUnmounted(() => {
   border: 1.5px solid var(--primary);
   box-shadow: 0 0 0 2px rgba(0, 113, 227, 0.25);
 }
-.lg-mark {
-  background: var(--card);
-  border: 1.5px solid #fa8c16;
-}
-
 /* 交卷按钮（红色强调） */
 .submit-all {
   width: 100%;

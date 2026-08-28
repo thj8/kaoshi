@@ -5,9 +5,10 @@
       <h1 style="flex: 1; font-size: 20px">{{ quiz?.title || '控制台' }}</h1>
       <button v-if="quiz" class="tag" style="cursor: pointer; border: 1px dashed var(--border)" title="点击复制加入链接" @click="copyLink">🔗 {{ joinLink }}</button>
       <span class="tag" :class="'st-' + status">{{ statusText }}</span>
+      <button class="tag" style="cursor: pointer" title="大屏排行榜（新标签页打开）" @click="openRank">🏆 排行榜</button>
     </div>
 
-    <div class="layout">
+    <div class="layout" :class="{ 'with-right': isExam }">
       <!-- 左：题目列表（视口内滚动，自动跟随当前题） -->
       <div class="card panel q-panel">
         <div class="q-head">
@@ -36,13 +37,21 @@
 
       <!-- 中：当前题 -->
       <div class="card panel mid">
-        <div v-if="isExam && status === 'RUNNING'" class="text-dim" style="text-align: center; padding: 60px 24px">
-          <div style="font-size: 40px; margin-bottom: 12px">📝</div>
-          <div style="font-size: 16px; font-weight: 700; color: var(--text); margin-bottom: 8px">考试进行中（自由切题模式）</div>
-          <div style="font-size: 13px; line-height: 1.8">
-            全卷已统一下发，参与者自由前后切题、选择即自动保存<br />
-            到「总答题时间」或点击底部「结束考试」时统一收卷计分<br />
-            实时作答进度可在「统计」页查看
+        <div v-if="isExam && (status === 'RUNNING' || status === 'FINISHED')" class="exam-live">
+          <div class="el-head">
+            <h3>{{ status === 'RUNNING' ? '实时作答进度' : '全卷作答汇总' }}</h3>
+            <span class="text-dim" style="font-size: 12px">选择即自动保存 · 到时或「结束考试」统一收卷计分</span>
+          </div>
+          <div class="el-grid">
+            <div v-for="q in ov.questions" :key="q.question_id" class="el-cell" :title="q.content">
+              <div class="el-top">
+                <span class="el-no">{{ String(q.index).padStart(2, '0') }}</span>
+                <span class="el-rate" :class="q.correct_rate >= 60 ? 'ok' : q.correct_rate > 0 ? 'low' : ''">{{ q.correct_rate.toFixed(0) }}%</span>
+              </div>
+              <div class="el-bar"><div class="el-fill" :style="{ width: elPct(q) }"></div></div>
+              <div class="el-meta"><b>{{ q.answered }}</b> / {{ ov.participants }} 人</div>
+            </div>
+            <p v-if="!ov.questions.length" class="text-dim" style="font-size: 12px; grid-column: 1 / -1; text-align: center; padding: 20px 0">暂无数据，等选手开始作答后每 5 秒刷新</p>
           </div>
         </div>
         <div v-else-if="!curQuestion" class="text-dim" style="text-align: center; padding: 60px 0">
@@ -120,6 +129,32 @@
         </template>
       </div>
 
+      <!-- 右：实时概况（考试/自由切题模式） -->
+      <div v-if="isExam" class="card panel right-ov">
+        <h3 class="panel-title">实时概况</h3>
+        <div class="ov-grid">
+          <div class="ov-cell"><b>{{ ov.participants }}</b><small>参赛人数</small></div>
+          <div class="ov-cell"><b>{{ ov.finished }}</b><small>已交卷</small></div>
+          <div class="ov-cell ok"><b>{{ ov.max_score }}</b><small>最高分</small></div>
+          <div class="ov-cell"><b>{{ ov.min_score }}</b><small>最低分</small></div>
+          <div class="ov-cell"><b>{{ ov.avg_score.toFixed(1) }}</b><small>平均分</small></div>
+          <div class="ov-cell"><b>{{ ov.avg_correct_rate.toFixed(0) }}%</b><small>平均正确率</small></div>
+        </div>
+        <h3 class="panel-title" style="margin-top: 16px">前 10 名</h3>
+        <div class="ov-top">
+          <div v-for="r in ov.ranking.slice(0, 10)" :key="r.user_id" class="ov-row">
+            <span class="ov-rk" :class="'p' + Math.min(r.rank, 3)">{{ r.rank }}</span>
+            <span class="ov-nm"><b>{{ r.nickname }}</b><small v-if="r.submitted_at">{{ fmtT(r.submitted_at) }} 交卷</small></span>
+            <span class="ov-sc">{{ r.score }}<em>分</em></span>
+          </div>
+          <p v-if="!ov.ranking.length" class="text-dim" style="font-size: 12px; padding: 8px 0">暂无数据</p>
+        </div>
+        <div class="text-dim" style="font-size: 11px; margin-top: 12px">
+          每 5 秒自动刷新 ·
+          <a href="javascript:;" style="color: var(--primary)" @click="$router.push(`/admin/quiz/${quizId}/stats`)">详细统计 →</a>
+        </div>
+      </div>
+
     </div>
 
     <!-- 底部控制 -->
@@ -145,7 +180,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { adminApi, type Quiz, type Question } from '../api/admin'
 import { adminToken } from '../api/admin'
 import { QuizWS } from '../ws'
@@ -153,6 +188,7 @@ import { Ev, type WSMessage } from '../ws/types'
 import { LS } from '../api'
 
 const route = useRoute()
+const router = useRouter()
 const quizId = String(route.params.id || '')
 
 const quiz = ref<Quiz | null>(null)
@@ -287,7 +323,8 @@ function handleEvent(msg: WSMessage) {
       }
       break
     case Ev.ActivityStart:
-      status.value = 'ANSWERING'
+      // 考试模式开始后状态为 RUNNING（自由切题，无逐题发布）；普通模式随后发布第 1 题为 ANSWERING
+      status.value = isExam.value ? 'RUNNING' : 'ANSWERING'
       break
     case Ev.ActivityPause:
       status.value = 'PAUSED'
@@ -341,6 +378,64 @@ function typeText(t: string) {
 
 const joinLink = computed(() => (quiz.value ? `${location.origin}/join/${quiz.value.id}` : ''))
 
+/** 考试模式右侧实时概况（轮询整场统计，5s；与统计页同源数据） */
+const ov = reactive({
+  participants: 0,
+  finished: 0,
+  max_score: 0,
+  min_score: 0,
+  avg_score: 0,
+  avg_correct_rate: 0,
+  ranking: [] as { rank: number; user_id: number; nickname: string; score: number; submitted_at: number }[],
+  questions: [] as { index: number; question_id: number; content: string; answered: number; correct: number; correct_rate: number }[],
+})
+let ovTimer: number | null = null
+async function loadOverview() {
+  try {
+    const s = await adminApi.statistics(quizId)
+    ov.participants = s.participants
+    ov.finished = s.finished
+    ov.max_score = s.max_score
+    ov.min_score = s.min_score
+    ov.avg_score = s.avg_score
+    ov.avg_correct_rate = s.avg_correct_rate
+    ov.ranking = s.ranking || []
+    ov.questions = s.questions || []
+  } catch {
+    /* 静默：下一轮重试 */
+  }
+}
+watch(status, (s) => {
+  if (!isExam.value) return
+  if (s === 'RUNNING' || s === 'FINISHED') {
+    loadOverview()
+    if (!ovTimer) ovTimer = window.setInterval(loadOverview, 5000)
+  } else if (ovTimer) {
+    clearInterval(ovTimer)
+    ovTimer = null
+  }
+})
+onUnmounted(() => {
+  if (ovTimer) clearInterval(ovTimer)
+})
+
+/** 新标签页打开大屏排行榜（admin 门禁） */
+function openRank() {
+  window.open(router.resolve(`/admin/rank/${quizId}`).href, '_blank')
+}
+
+/** 逐题作答进度条宽度 */
+function elPct(q: { answered: number }) {
+  if (!ov.participants) return '0%'
+  return Math.min(100, (q.answered / ov.participants) * 100) + '%'
+}
+
+/** 交卷时间（HH:MM） */
+function fmtT(ms?: number) {
+  if (!ms) return ''
+  return new Date(ms).toLocaleTimeString('zh-CN', { hour12: false, hour: '2-digit', minute: '2-digit' })
+}
+
 async function copyLink() {
   try {
     await navigator.clipboard.writeText(joinLink.value)
@@ -361,6 +456,179 @@ async function copyLink() {
   grid-template-columns: 300px 1fr;
   gap: 14px;
   align-items: start;
+}
+.layout.with-right {
+  grid-template-columns: 280px 1fr 280px;
+}
+/* 考试模式右侧实时概况栏 */
+.right-ov {
+  padding: 14px;
+  position: sticky;
+  top: 14px;
+  max-height: calc(100vh - 200px);
+  overflow-y: auto;
+}
+.ov-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.ov-cell {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 6px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ov-cell b {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text);
+}
+.ov-cell small {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.ov-cell.ok b {
+  color: var(--success);
+}
+.ov-top {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ov-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+.ov-row:hover {
+  background: rgba(108, 123, 255, 0.06);
+}
+.ov-rk {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(108, 123, 255, 0.12);
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ov-rk.p1 {
+  background: #ffd700;
+  color: #4a3800;
+}
+.ov-rk.p2 {
+  background: #c0c8d8;
+  color: #333;
+}
+.ov-rk.p3 {
+  background: #cd7f32;
+  color: #fff;
+}
+.ov-nm {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+.ov-nm b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+.ov-nm small {
+  font-size: 10px;
+  color: var(--text-dim);
+}
+.ov-sc {
+  color: var(--primary);
+  font-weight: 800;
+}
+.ov-sc em {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-left: 2px;
+}
+/* 考试模式中间区：实时逐题作答进度 */
+.exam-live {
+  padding: 6px 8px;
+}
+.el-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.el-head h3 {
+  font-size: 15px;
+  color: var(--text);
+}
+.el-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 10px;
+}
+.el-cell {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.el-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.el-no {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text);
+}
+.el-rate {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.el-rate.ok {
+  color: var(--success);
+}
+.el-rate.low {
+  color: var(--warn);
+}
+.el-bar {
+  height: 5px;
+  border-radius: 5px;
+  background: rgba(108, 123, 255, 0.12);
+  overflow: hidden;
+}
+.el-fill {
+  height: 100%;
+  border-radius: 5px;
+  background: linear-gradient(90deg, var(--primary), #8a9bff);
+  transition: width 0.5s ease;
+}
+.el-meta {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.el-meta b {
+  color: var(--text);
 }
 .panel {
   min-height: 380px;
@@ -651,8 +919,13 @@ async function copyLink() {
 .st-FINISHED { color: var(--text-dim); }
 
 @media (max-width: 960px) {
-  .layout {
+  .layout,
+  .layout.with-right {
     grid-template-columns: 1fr;
+  }
+  .right-ov {
+    position: static;
+    max-height: none;
   }
 }
 </style>

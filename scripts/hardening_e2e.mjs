@@ -252,6 +252,52 @@ function connect(token, onMsg) {
   const late = await j('POST', `/api/quiz/${eq2.code}/paper/answer`, { question_id: pq.id, answer: 'B' }, je4.token)
   check('E21 到时后保存被拒', late.code !== 0, `msg=${late.msg}`)
 
+  // ---------- 4c. 考试实时排行榜（管理端 statistics）+ 排行榜仅管理员可见 ----------
+  const eq3 = (await j('POST', '/api/admin/quiz', { title: 's8-exam-liverank', mode: 'exam', total_time: 300, show_ranking: true }, at)).data
+  createdQuizzes.push(eq3.code)
+  const lq1 = (await j('POST', `/api/admin/quiz/${eq3.code}/questions`, { type: 'single', content: 'E-实时榜1?', answer: 'A', score: 10, required: true, sort: 1, options: [{ label: 'A', content: '1' }, { label: 'B', content: '2' }] }, at)).data
+  const lq2 = (await j('POST', `/api/admin/quiz/${eq3.code}/questions`, { type: 'single', content: 'E-实时榜2?', answer: 'B', score: 10, required: true, sort: 2, options: [{ label: 'A', content: '1' }, { label: 'B', content: '2' }] }, at)).data
+  const ue5 = await mkU(`s8e5${sfx}`), ue6 = await mkU(`s8e6${sfx}`)
+  const jr5 = (await j('POST', '/api/join', { quiz_id: eq3.code }, ue5.token)).data
+  const jr6 = (await j('POST', '/api/join', { quiz_id: eq3.code }, ue6.token)).data
+  const t0c = Date.now()
+  await j('POST', `/api/admin/quiz/${eq3.code}/start`, {}, at); await sleep(300)
+  const id5 = ue5.user.id, id6 = ue6.user.id
+  const lr = (s, id) => s.ranking.find(r => r.user_id === id)
+
+  // 实时排名：未交卷也计分（服务端草稿判分聚合），排行榜数据走 /api/admin/quiz/:id/statistics
+  await j('POST', `/api/quiz/${eq3.code}/paper/answer`, { question_id: lq1.id, answer: 'A', duration: 100 }, jr5.token)
+  await sleep(30)
+  await j('POST', `/api/quiz/${eq3.code}/paper/answer`, { question_id: lq1.id, answer: 'A', duration: 100 }, jr6.token)
+  await sleep(60)
+  let ls = (await j('GET', `/api/admin/quiz/${eq3.code}/statistics`, null, at)).data
+  check('E22 实时排行榜：未交卷也显示得分(10/10)', lr(ls, id5)?.score === 10 && lr(ls, id6)?.score === 10, JSON.stringify(ls.ranking.map(r => [r.nickname, r.score])))
+  check('E23 实时排行榜：同分未交卷先到分者排前', lr(ls, id5)?.rank === 1 && lr(ls, id6)?.rank === 2, `r5=${lr(ls, id5)?.rank} r6=${lr(ls, id6)?.rank}`)
+  check('E24 实时汇总：max=min=avg=10、逐题已答=2', ls.max_score === 10 && ls.min_score === 10 && Math.abs(ls.avg_score - 10) < 0.01 && ls.questions[0].answered === 2, `max=${ls.max_score} avg=${ls.avg_score} ans=${ls.questions[0].answered}`)
+  await sleep(2000) // 拉开首答→交卷时间差，供 E30 用时断言
+
+  // 同分交卷顺序：已交卷者排前；都已交卷按交卷时间早者在前
+  await j('POST', `/api/quiz/${eq3.code}/paper/submit`, {}, jr6.token); await sleep(60)
+  ls = (await j('GET', `/api/admin/quiz/${eq3.code}/statistics`, null, at)).data
+  check('E25 同分：已交卷者排前、未交卷仍实时计分', lr(ls, id6)?.rank === 1 && lr(ls, id5)?.rank === 2 && lr(ls, id5)?.score === 10 && ls.finished === 1, JSON.stringify(ls.ranking.map(r => [r.nickname, r.rank, r.score])))
+  check('E25b 交卷时间字段：已交卷>0、未交卷=0', lr(ls, id6)?.submitted_at > 0 && lr(ls, id5)?.submitted_at === 0, `sub6=${lr(ls, id6)?.submitted_at} sub5=${lr(ls, id5)?.submitted_at}`)
+  await j('POST', `/api/quiz/${eq3.code}/paper/submit`, {}, jr5.token); await sleep(60)
+  ls = (await j('GET', `/api/admin/quiz/${eq3.code}/statistics`, null, at)).data
+  check('E26 同分都已交卷：交卷早者排前（含交卷时间）', lr(ls, id6)?.rank === 1 && lr(ls, id5)?.rank === 2 && ls.finished === 2 && lr(ls, id5)?.submitted_at > 0, JSON.stringify(ls.ranking.map(r => [r.nickname, r.rank, r.submitted_at])))
+
+  // 排行榜权限：考试模式选手不可看排行榜；statistics 仅 admin
+  const uRank = await j('GET', `/api/quiz/${eq3.code}/ranking`, null, jr5.token)
+  check('E27 考试模式选手拉排行榜被拒(仅管理员)', uRank.code !== 0, `msg=${uRank.msg}`)
+  const uStats = await j('GET', `/api/admin/quiz/${eq3.code}/statistics`, null, jr5.token)
+  check('E28 用户 token 访问管理统计被拒', uStats.code !== 0, `code=${uStats.code}`)
+  const noTok = await fetch(`${B}/api/admin/quiz/${eq3.code}/statistics`).then(r => r.status)
+  check('E29 无 token 访问管理统计被拒(401)', noTok === 401, `http=${noTok}`)
+
+  // 考试用时：墙钟口径（本人首答→交卷），不能逐题 duration 累加（窗口重叠会虚高）
+  const wallSec = Math.round((Date.now() - t0c) / 1000)
+  const r5res = (await j('GET', `/api/quiz/${eq3.code}/result`, null, jr5.token)).data
+  check('E30 考试用时=首答→交卷墙钟（>0 且 ≤ 实际耗时+2s）', r5res.duration_sec > 0 && r5res.duration_sec <= wallSec + 2, `dur=${r5res.duration_sec}s wall=${wallSec}s`)
+
   } finally {
     // ---------- 清理本场测试数据（断言失败同样执行；只动本场创建的赛与用户） ----------
     let dq = 0, du = 0

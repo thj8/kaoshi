@@ -293,6 +293,27 @@ function connect(token, onMsg) {
   const resC11 = (await j('GET', `/api/quiz/${quizC11.code}/result`, null, jC11.token)).data
   check('C11b 收卷不覆盖已补交答案', resC11.correct === 1 && resC11.wrong === 0, JSON.stringify(resC11))
 
+  // ---------- 5. 排行榜权限（考试模式排行榜仅管理员可见） ----------
+  const quizE = (await mkQ('sec-exam-rank', 'exam', { total_time: 300, show_ranking: true })).data
+  const qE = (await mkQs(quizE.code, { type: 'single', content: '考试榜?', answer: 'A', score: 10, required: true, time_limit: 30, options: opts(['A', 'B']) })).data
+  const jE = (await j('POST', '/api/join', { quiz_id: quizE.code }, alice.token)).data
+  await j('POST', `/api/admin/quiz/${quizE.code}/start`, {}, at)
+  await j('POST', `/api/quiz/${quizE.code}/paper/answer`, { question_id: qE.id, answer: 'A', duration: 100 }, jE.token)
+  await sleep(100)
+  const uRankE = await j('GET', `/api/quiz/${quizE.code}/ranking`, null, jE.token)
+  check('D1 考试模式选手拉排行榜被拒(仅管理员)', uRankE.code !== 0, `code=${uRankE.code} msg=${uRankE.msg}`)
+  const uStatsE = await j('GET', `/api/admin/quiz/${quizE.code}/statistics`, null, jE.token)
+  check('D2 用户 token 访问管理统计接口被拒', uStatsE.code !== 0, `code=${uStatsE.code}`)
+  const noTokE = await fetch(`${B}/api/admin/quiz/${quizE.code}/statistics`).then(r => r.status)
+  check('D3 无 token 访问管理统计接口被拒(401)', noTokE === 401, `http=${noTokE}`)
+  // 实时排行榜本体（管理员视角）：未交卷也有分
+  const liveStats = (await j('GET', `/api/admin/quiz/${quizE.code}/statistics`, null, at)).data
+  const mineE = (liveStats.ranking || []).find(r => r.user_id === alice.user.id)
+  check('D4 管理端实时排行榜：未交卷也计分', mineE?.score === 10 && mineE?.rank === 1, JSON.stringify(mineE))
+  // 试卷接口不泄露排行榜/他人数据：paper 只含本人答案与题面
+  const paperStr = JSON.stringify(await j('GET', `/api/quiz/${quizE.code}/paper`, null, jE.token))
+  check('D5 试卷不含排行榜字段', !paperStr.includes('"ranking"'), '')
+
   } finally {
     // ---------- 清理本场测试数据（断言失败同样执行；只动本场创建的赛与用户） ----------
     let dq = 0, du = 0

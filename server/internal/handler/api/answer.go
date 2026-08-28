@@ -51,6 +51,12 @@ func (h *AnswerHandler) Ranking(c *gin.Context) {
 		fail(c, 403, "只能查看自己参加的答题")
 		return
 	}
+	if quiz.Mode == model.ModeExam {
+		// 考试（自由切题）模式排行榜仅管理员可见（控制台/大屏走 /api/admin/quiz/:id/statistics），
+		// 选手不可互看实时得分与排名，防互抄与踩点
+		fail(c, 403, "考试模式排行榜仅管理员可见")
+		return
+	}
 	items := h.Eng.Ranking(quiz.ID, 100)
 	if !quiz.ShowRanking {
 		// 关闭排行时不暴露榜单，仅返回自己排名
@@ -103,14 +109,20 @@ func (h *AnswerHandler) Result(c *gin.Context) {
 	var durationMs int64
 	h.DB.Model(&model.Answer{}).Where("quiz_id = ? AND user_id = ?", quizID, claims.UserID).
 		Select("COALESCE(SUM(duration),0)").Scan(&durationMs)
+	// 考试模式：用时 = 首次保存答案 → 交卷（未交卷则至今）的墙钟时间。
+	// 不能逐题 duration 累加：自由切题下各题计时窗口 [首次打开, 最近保存] 相互重叠
+	// （来回切题/改答），累加会显著虚高（如 30 分钟考试算出 50+ 分钟）。
+	if quiz.Mode == model.ModeExam {
+		durationMs = examWallDurationMs(h.DB, quizID, claims.UserID, p.FinishedAt)
+	}
 
 	ok(c, gin.H{
-		"nickname":     claims.Nick,
-		"score":        p.Score,
-		"correct":      correct,
-		"wrong":        answered - correct,
-		"answered":     answered,
-		"total":        totalQ,
+		"nickname": claims.Nick,
+		"score":    p.Score,
+		"correct":  correct,
+		"wrong":    answered - correct,
+		"answered": answered,
+		"total":    totalQ,
 		"correct_rate": func() float64 {
 			if answered == 0 {
 				return 0

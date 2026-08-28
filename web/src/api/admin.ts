@@ -127,5 +127,5 @@ export interface Statistics {
   min_score: number
   avg_correct_rate: number
   questions: { index: number; question_id: number; type: string; content: string; answered: number; correct: number; wrong: number; correct_rate: number; avg_duration: number }[]
-  ranking: { rank: number; user_id: number; nickname: string; score: number; correct: number; wrong: number }[]
+  ranking: { rank: number; user_id: number; nickname: string; score: number; correct: number; wrong: number; submitted_at: number }[]
 }

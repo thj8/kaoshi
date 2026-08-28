@@ -1,6 +1,7 @@
 package api
 
 import (
+	"database/sql"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -90,16 +91,16 @@ func (h *PaperHandler) Paper(c *gin.Context) {
 	}
 
 	ok(c, gin.H{
-		"title":       quiz.Title,
-		"mode":        quiz.Mode,
+		"title":          quiz.Title,
+		"mode":           quiz.Mode,
 		"status":         quiz.Status,
 		"total":          len(qs),
 		"question_count": questionCount,
-		"deadline_at": deadline,
-		"server_now":  time.Now().UnixMilli(),
-		"submitted":   submitted,
-		"score":       p.Score,
-		"questions":   items,
+		"deadline_at":    deadline,
+		"server_now":     time.Now().UnixMilli(),
+		"submitted":      submitted,
+		"score":          p.Score,
+		"questions":      items,
 	})
 }
 
@@ -144,4 +145,23 @@ func (h *PaperHandler) SubmitPaper(c *gin.Context) {
 		return
 	}
 	ok(c, result)
+}
+
+// examWallDurationMs 考试模式答题用时：本人首次保存答案到交卷（未交卷则到当前）的墙钟毫秒数。
+// 不能用逐题 duration 累加：自由切题下各题计时窗口相互重叠（来回切题/改答），累加会虚高。
+func examWallDurationMs(db *gorm.DB, quizID, userID int64, finishedAt *time.Time) int64 {
+	var first sql.NullTime
+	row := db.Raw("SELECT MIN(submitted_at) FROM answers WHERE quiz_id = ? AND user_id = ?", quizID, userID).Row()
+	_ = row.Scan(&first)
+	if !first.Valid {
+		return 0 // 一题都没答过
+	}
+	end := time.Now()
+	if finishedAt != nil {
+		end = *finishedAt
+	}
+	if end.Before(first.Time) {
+		return 0
+	}
+	return int64(end.Sub(first.Time) / time.Millisecond)
 }

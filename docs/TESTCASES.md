@@ -94,6 +94,21 @@ node scripts/hardening_e2e.mjs   # 抢答并发/越权/防重复/重连/考试�
 | E19 | 结束重算不改动已交卷成绩 | hardening_e2e | ✅ |
 | E20 | 到时自动收卷+重算 | hardening_e2e | ✅ |
 | E21 | 到时后保存被拒 | hardening_e2e | ✅ |
+| E22 | 实时排行榜：未交卷也显示得分 | hardening_e2e | ✅ |
+| E23 | 实时排行榜：同分未交卷先到分者排前 | hardening_e2e | ✅ |
+| E24 | 实时汇总口径：max/min/avg/逐题已答同步实时 | hardening_e2e | ✅ |
+| E25 | 同分：已交卷者排前、未交卷仍实时计分 | hardening_e2e | ✅ |
+| E26 | 同分都已交卷：交卷早者排前 | hardening_e2e | ✅ |
+| E25b | ranking 含交卷时间 submitted_at | hardening_e2e | ✅ |
+| E27 | 考试模式选手拉排行榜被拒（仅管理员） | hardening_e2e | ✅ |
+| E28 | 用户 token 访问管理统计被拒 | hardening_e2e | ✅ |
+| E29 | 无 token 访问管理统计被拒（401） | hardening_e2e | ✅ |
+| E30 | 考试用时=首答→交卷墙钟（不逐题累加） | hardening_e2e | ✅ |
+| D1 | 考试模式选手拉排行榜被拒（仅管理员） | security_e2e | ✅ |
+| D2 | 用户 token 访问管理统计接口被拒 | security_e2e | ✅ |
+| D3 | 无 token 访问管理统计接口被拒（401） | security_e2e | ✅ |
+| D4 | 管理端实时排行榜：未交卷也计分 | security_e2e | ✅ |
+| D5 | 试卷不含排行榜字段 | security_e2e | ✅ |
 
 ## 用例详细说明
 
@@ -152,6 +167,23 @@ node scripts/hardening_e2e.mjs   # 抢答并发/越权/防重复/重连/考试�
   判分成功；越过宽限收卷后查 result，该答案未被覆盖为“未答”（correct=1）。
   配套实现：服务端收卷定时器延后 1.5s（`forceCollect` 的 `collectGrace`，与提交宽限对齐），
   否则收卷先落库会把在途补交挡成“已提交过本题答案”。
+
+### 排行榜权限（D 系列）—— scripts/security_e2e.mjs
+
+考试（自由切题）模式排行榜/统计数据只对管理员开放；选手不可互看实时得分与排名，
+防互抄与踩点。管理端入口：控制台「实时概况」栏与独立大屏 `/admin/rank/:id`（新标签页，
+admin 门禁），均轮询 `GET /api/admin/quiz/:id/statistics`（5s）。
+
+- **D1 考试模式选手拉排行榜被拒**：`GET /api/quiz/:id/ranking` 在 exam 模式直接
+  403「考试模式排行榜仅管理员可见」（不再受 `show_ranking` 开关影响）。
+- **D2 用户 token 访问管理统计被拒**：statistics 在 `/api/admin` + `AdminAuth` 门禁后。
+- **D3 无 token 访问管理统计被拒**：HTTP 401。
+- **D4 管理端实时排行榜**：考试进行中未交卷者也计分上榜（详见 hardening E22-E26）。
+- **D5 试卷不含排行榜字段**：`GET /api/quiz/:id/paper` 响应无 `"ranking"` 键
+  （试卷只含题面 + 本人草稿）。
+
+注：考试结束时 `activity:end` 仍向全员广播最终榜单（成绩公布时刻，所有模式一致）；
+考试**进行中**的实时榜单仅管理端可见。
 
 ### 抢答并发 / 越权 / 防重复 / 重连（H 系列）—— scripts/hardening_e2e.mjs
 
@@ -247,6 +279,37 @@ u3 只保存不交卷（并发首存）。另有 3s 时长小场验到时自动�
 - **E20 到时自动收卷**：3s 小场答题后等到时，`finished=true`、按已存答案得 10 分
   （服务端 timer → End → 重算）。
 - **E21 到时后保存被拒**：FINISHED 后再保存答案被拒。
+
+#### 实时排行榜与权限（E22-E29，4c 节；另见 security D 系列）
+
+场景：exam 模式 300s、2 题单选各 10 分，两人各答对第 1 题（同分 10），
+随后乙先交卷、甲后交卷。
+
+- **E22 实时排行榜**：考试进行中、**均未交卷**时，管理端 `statistics` 的 `ranking`
+  即显示两人各 10 分（从 answers 草稿聚合，保存时服务端已判分；`participants.score`
+  交卷才终局化，排行不走它）。
+- **E23 同分未交卷排序**：先到分者（先保存时间早者）排前。
+- **E24 实时汇总口径**：`max_score/min_score/avg_score` 与逐题 `answered` 同步实时
+  （避免「最高分 0 但榜首 10 分」的割裂）。
+- **E25 同分交卷排序**：乙交卷后跳到第 1（同分已交卷者排前），甲未交卷仍实时显 10 分，
+  `finished=1`。
+- **E25b 交卷时间字段**：`ranking[].submitted_at`（unix毫秒）已交卷 > 0、未交卷 = 0
+  （供大屏/控制台展示交卷时间列）。
+- **E26 交卷早者排前**：甲后交卷，同分都已交卷 → 交卷早的乙仍第 1（双方 `submitted_at` 均非 0）。
+- **E27 排行榜仅管理员**：考试模式选手调 `GET /api/quiz/:id/ranking` 被拒
+  （403「考试模式排行榜仅管理员可见」，防互抄/踩点；排行榜数据只有 admin 能看）。
+- **E28 用户 token 访问管理统计被拒**：`GET /api/admin/quiz/:id/statistics` 在
+  `AdminAuth` 门禁后，用户 token 返回非 0。
+- **E29 无 token 访问管理统计被拒**：不带 Authorization 请求返回 HTTP 401。
+
+> 排序规则（考试模式 `examRanking`）：分数降序 → 同分已交卷者在前 → 同分均已交卷按
+> 交卷时间升序（早者前）→ 同分均未交卷按最后保存时间升序（先到分者前）。
+> 普通模式排行榜不受影响（仍走 `participants` 表）。
+- **E30 考试用时口径**：`GET /api/quiz/:id/result` 的 `duration_sec` 在考试模式为
+  「本人首次保存答案 → 交卷（未交卷则至今）」的墙钟时间；**不逐题 duration 累加**
+  （自由切题下各题计时窗口 [首次打开, 最近保存] 相互重叠，累加会虚高——
+  曾出现 30 分钟考试显示 52:50 的 bug）。断言 `0 < duration_sec ≤ 实际耗时+2s`。
+  普通/抢答模式仍用逐题累加（顺序作答、窗口不重叠，语义即实际作答时长）。
 
 ## Git 提交约束
 
