@@ -46,11 +46,7 @@ func (h *AnswerHandler) Submit(c *gin.Context) {
 // Ranking GET /api/quiz/:id/ranking
 func (h *AnswerHandler) Ranking(c *gin.Context) {
 	claims := c.MustGet("claims").(*auth.Claims)
-	quiz, found := quizByCode(h.DB, c.Param("id"))
-	if !found || quiz.ID != claims.QuizID {
-		fail(c, 403, "只能查看自己参加的答题")
-		return
-	}
+	quiz := c.MustGet("quiz").(*model.Quiz)
 	if quiz.Mode == model.ModeExam {
 		// 考试（自由切题）模式排行榜仅管理员可见（控制台/大屏走 /api/admin/quiz/:id/statistics），
 		// 选手不可互看实时得分与排名，防互抄与踩点
@@ -83,16 +79,19 @@ func (h *AnswerHandler) Ranking(c *gin.Context) {
 // Result GET /api/quiz/:id/result 个人成绩（结束后）
 func (h *AnswerHandler) Result(c *gin.Context) {
 	claims := c.MustGet("claims").(*auth.Claims)
-	quiz, found := quizByCode(h.DB, c.Param("id"))
-	if !found || quiz.ID != claims.QuizID {
-		fail(c, 403, "只能查看自己参加的答题")
-		return
-	}
+	quiz := c.MustGet("quiz").(*model.Quiz)
 	quizID := quiz.ID
 
 	var p model.Participant
 	if err := h.DB.Where("quiz_id = ? AND user_id = ?", quizID, claims.UserID).First(&p).Error; err != nil {
 		fail(c, 404, "未参加该答题")
+		return
+	}
+	// 考试模式未交卷：不出实时对错/得分计数 —— 否则脚本可「逐题保存选项→拉 result 看对错数是否变化」
+	// 逐题试探猜答案，击穿「考试逐题不回传对错」的防试答设计（E11 只封了逐题接口，result 必须同封）。
+	// 交卷后成绩锁定（FinalizePaper），对错计数不再变化，可安全返回。
+	if quiz.Mode == model.ModeExam && p.FinishedAt == nil {
+		fail(c, 403, "交卷后才能查看成绩")
 		return
 	}
 
@@ -154,12 +153,7 @@ func (h *AnswerHandler) Rush(c *gin.Context) {
 
 // CurrentQuestion GET /api/quiz/:id/current-question 当前题（REST 兑底，刷新恢复）
 func (h *AnswerHandler) CurrentQuestion(c *gin.Context) {
-	claims := c.MustGet("claims").(*auth.Claims)
-	quiz, found := quizByCode(h.DB, c.Param("id"))
-	if !found || quiz.ID != claims.QuizID {
-		fail(c, 403, "只能查看自己参加的答题")
-		return
-	}
+	quiz := c.MustGet("quiz").(*model.Quiz)
 	q := h.Eng.CurrentQuestionInfo(quiz.ID)
 	if q == nil {
 		ok(c, nil)

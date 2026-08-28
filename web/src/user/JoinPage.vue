@@ -110,13 +110,7 @@ async function goMine(m: { code: string; mode?: string; status: string }) {
   // 先同步开新 tab（在点击手势内，避免 await 后被浏览器拦截），加入完成后再导航
   const win = window.open('about:blank')
   try {
-    // 已结束且无 token：重新 join 换 token（老参与者可换）再看成绩
-    if (!localStorage.getItem(LS.userToken(m.code))) {
-      const { token, quiz, user } = await userApi.joinQuiz(m.code)
-      localStorage.setItem(LS.userToken(quiz.code), token)
-      localStorage.setItem(LS.userId(quiz.code), String(user.id))
-      localStorage.setItem(LS.nickname(quiz.code), user.nickname)
-    }
+    await ensureJoined(m.code) // 已结束且无 token：重新 join 换 token 再看成绩
     const exam = examPath({ code: m.code, mode: m.mode, status: m.status })
     const path = exam ?? (m.status === 'FINISHED' ? `/rank/${m.code}` : `/quiz/${m.code}`)
     if (win) win.location.href = path
@@ -172,6 +166,15 @@ function logout() {
   router.replace('/login')
 }
 
+/** 确保本地有该场答题 token：没有则加入换取并存 localStorage（幂等，老参与者可重换） */
+async function ensureJoined(quizId: string) {
+  if (localStorage.getItem(LS.userToken(quizId))) return
+  const { token, quiz, user } = await userApi.joinQuiz(quizId)
+  localStorage.setItem(LS.userToken(quiz.code), token)
+  localStorage.setItem(LS.userId(quiz.code), String(user.id))
+  localStorage.setItem(LS.nickname(quiz.code), user.nickname)
+}
+
 async function go(quizId: string, newTab = true) {
   if (!quizId) return
   joining.value = true
@@ -179,19 +182,10 @@ async function go(quizId: string, newTab = true) {
   // 先同步开新 tab（在点击手势内，避免 await 后被浏览器拦截），加入完成后再导航
   const win = newTab ? window.open('about:blank') : null
   try {
-    let path: string
-    // 已有答题 token 直接进（brief 补查模式，考试走 /exam）
-    if (localStorage.getItem(LS.userToken(quizId))) {
-      const brief = await userApi.quizBrief(quizId).catch(() => null)
-      path = brief?.mode === 'exam' ? `/exam/${quizId}` : `/quiz/${quizId}`
-    } else {
-      // 加入换取答题 token
-      const { token, quiz, user } = await userApi.joinQuiz(quizId)
-      localStorage.setItem(LS.userToken(quiz.code), token)
-      localStorage.setItem(LS.userId(quiz.code), String(user.id))
-      localStorage.setItem(LS.nickname(quiz.code), user.nickname)
-      path = quiz.mode === 'exam' ? `/exam/${quiz.code}` : `/quiz/${quiz.code}`
-    }
+    await ensureJoined(quizId)
+    // 已有答题 token 时 brief 补查模式（考试走 /exam）
+    const brief = await userApi.quizBrief(quizId).catch(() => null)
+    const path = brief?.mode === 'exam' ? `/exam/${quizId}` : `/quiz/${quizId}`
     if (win) win.location.href = path
     else router.replace(path) // 弹窗被拦截或非点击手势时兜底当前页
   } catch (e: any) {

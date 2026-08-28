@@ -35,6 +35,9 @@ node scripts/hardening_e2e.mjs   # 抢答并发/越权/防重复/重连/考试�
 | C9 | 失效 token（用户已删）提交答案被拒 | security_e2e | ✅ |
 | C10 | 失效 token（用户已删）抢答被拒 | security_e2e | ✅ |
 | C11 | 到点宽限（1.5s）内补交被接受，收卷不覆盖 | security_e2e | ✅ |
+| C12 | 暂停(PAUSED)提交被拒 | security_e2e | ✅ |
+| C12b | 恢复(ANSWERING)后可继续作答 | security_e2e | ✅ |
+| C13 | 多选少选不得分（AB 选 A=错 0 分） | security_e2e | ✅ |
 | H1 | 越权：跨 quiz token 提交被拒 | hardening_e2e | ✅ |
 | H2 | 越权：未参加者提交被拒 | hardening_e2e | ✅ |
 | H3 | 防重复：二次提交被拒且不重复加分 | hardening_e2e | ✅ |
@@ -104,6 +107,8 @@ node scripts/hardening_e2e.mjs   # 抢答并发/越权/防重复/重连/考试�
 | E28 | 用户 token 访问管理统计被拒 | hardening_e2e | ✅ |
 | E29 | 无 token 访问管理统计被拒（401） | hardening_e2e | ✅ |
 | E30 | 考试用时=首答→交卷墙钟（不逐题累加） | hardening_e2e | ✅ |
+| E31 | 考试未交卷拉成绩被拒（防逐题试答探测） | hardening_e2e | ✅ |
+| CD | question:countdown 每秒广播含剩余秒/截止时间 | hardening_e2e | ✅ |
 | D1 | 考试模式选手拉排行榜被拒（仅管理员） | security_e2e | ✅ |
 | D2 | 用户 token 访问管理统计接口被拒 | security_e2e | ✅ |
 | D3 | 无 token 访问管理统计接口被拒（401） | security_e2e | ✅ |
@@ -163,6 +168,10 @@ node scripts/hardening_e2e.mjs   # 抢答并发/越权/防重复/重连/考试�
 - **C7 结束后提交被拒**：quiz End 之后提交答案被拒。
 - **C8 倒计时超时后提交被拒**：1 秒时限的题，等 4 秒（超时+宽限 1.5s）后提交被拒
   （到点服务端强制收卷，已记录“未答”）。
+- **C12 暂停(PAUSED)提交被拒 / C12b 恢复后可作答**：暂停期间提交 code≠0（状态机要求
+  ANSWERING）；resume 后同一题可正常提交并判分。
+- **C13 多选少选不得分**：正确答案 AB，只提交 A → `is_correct=false` 且本次得 0 分
+  （少选不得分规则）。
 - **C11 到点宽限内补交被接受**：2 秒时限的题，到点后 ~0.3s 提交（模拟前端“时间到自动补交已选答案”）→
   判分成功；越过宽限收卷后查 result，该答案未被覆盖为“未答”（correct=1）。
   配套实现：服务端收卷定时器延后 1.5s（`forceCollect` 的 `collectGrace`，与提交宽限对齐），
@@ -301,6 +310,11 @@ u3 只保存不交卷（并发首存）。另有 3s 时长小场验到时自动�
 - **E28 用户 token 访问管理统计被拒**：`GET /api/admin/quiz/:id/statistics` 在
   `AdminAuth` 门禁后，用户 token 返回非 0。
 - **E29 无 token 访问管理统计被拒**：不带 Authorization 请求返回 HTTP 401。
+- **E31 考试未交卷拉成绩被拒（防试答探测）**：考试进行中本人未交卷时请求
+  `GET /api/quiz/:id/result` 返回 403「交卷后才能查看成绩」——否则脚本可「逐题保存选项→
+  拉 result 看对错计数变化」试探猜答案，击穿考试逐题不回传对错的设计；交卷后成绩锁定可查。
+- **CD 倒计时每秒广播**：WS 订阅 `question:countdown`，2.5s 内收到 ≥2 条，每条含
+  `question_id`/`remain_sec`(>0)/`deadline_at`(>0)。
 
 > 排序规则（考试模式 `examRanking`）：分数降序 → 同分已交卷者在前 → 同分均已交卷按
 > 交卷时间升序（早者前）→ 同分均未交卷按最后保存时间升序（先到分者前）。

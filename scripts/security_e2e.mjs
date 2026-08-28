@@ -279,6 +279,30 @@ function connect(token, onMsg) {
   check('C8 倒计时超时(含宽限)后提交被拒', late.code !== 0, `code=${late.code} msg=${late.msg}`)
   await j('POST', `/api/admin/quiz/${quizT.code}/end`, {}, at)
 
+  // C12 暂停(PAUSED)状态下提交被拒；恢复(ANSWERING)后可继续作答
+  const quizPs = (await mkQ('sec-pause', 'normal', { show_answer: true })).data
+  const qPs = (await mkQs(quizPs.code, { type: 'single', content: '暂停?', answer: 'A', score: 10, required: true, time_limit: 30, options: opts(['A', 'B']) })).data
+  const jPs = (await j('POST', '/api/join', { quiz_id: quizPs.code }, alice.token)).data
+  await j('POST', `/api/admin/quiz/${quizPs.code}/start`, {}, at)
+  await sleep(300)
+  await j('POST', `/api/admin/quiz/${quizPs.code}/pause`, {}, at); await sleep(150)
+  const pRejX = await j('POST', `/api/question/${qPs.id}/answer`, { answer: 'A', duration: 100 }, jPs.token)
+  check('C12 暂停(PAUSED)提交被拒', pRejX.code !== 0, `code=${pRejX.code} msg=${pRejX.msg}`)
+  await j('POST', `/api/admin/quiz/${quizPs.code}/resume`, {}, at); await sleep(200)
+  const pOkX = await j('POST', `/api/question/${qPs.id}/answer`, { answer: 'A', duration: 100 }, jPs.token)
+  check('C12b 恢复(ANSWERING)后可继续作答', pOkX.code === 0 && pOkX.data?.is_correct === true, `code=${pOkX.code} correct=${pOkX.data?.is_correct}`)
+  await j('POST', `/api/admin/quiz/${quizPs.code}/end`, {}, at)
+
+  // C13 多选少选不得分（正确 AB 只选 A → 判错 0 分）
+  const quizMs = (await mkQ('sec-partial', 'normal', { show_answer: true })).data
+  const qMs = (await mkQs(quizMs.code, { type: 'multiple', content: '少选?', answer: 'AB', score: 10, required: true, time_limit: 30, options: opts(['A', 'B', 'C']) })).data
+  const jMs = (await j('POST', '/api/join', { quiz_id: quizMs.code }, bob.token)).data
+  await j('POST', `/api/admin/quiz/${quizMs.code}/start`, {}, at)
+  await sleep(300)
+  const partX = await j('POST', `/api/question/${qMs.id}/answer`, { answer: 'A', duration: 100 }, jMs.token)
+  check('C13 多选少选不得分(AB选A=错0分)', partX.code === 0 && partX.data?.is_correct === false && partX.data?.score === 0, `code=${partX.code} correct=${partX.data?.is_correct} score=${partX.data?.score}`)
+  await j('POST', `/api/admin/quiz/${quizMs.code}/end`, {}, at)
+
   // C11 到点宽限内补交被接受：前端「时间到自动补交已选答案」的服务端契约。
   // 收卷定时器同样延后 1.5s：deadline+~0.3s 的在途提交必须成功，且后续收卷不得把它覆盖为“未答”。
   const quizC11 = (await mkQ('sec-grace', 'normal', { show_answer: true })).data

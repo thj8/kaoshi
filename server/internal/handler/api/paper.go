@@ -25,11 +25,7 @@ func NewPaper(db *gorm.DB, eng *engine.Engine) *PaperHandler {
 // Paper GET /api/quiz/:id/paper 全卷下发（答案/解析绝不入参；含本人已存答案）
 func (h *PaperHandler) Paper(c *gin.Context) {
 	claims := c.MustGet("claims").(*auth.Claims)
-	quiz, found := quizByCode(h.DB, c.Param("id"))
-	if !found || quiz.ID != claims.QuizID {
-		fail(c, 403, "只能查看自己参加的考试")
-		return
-	}
+	quiz := c.MustGet("quiz").(*model.Quiz)
 	if quiz.Mode != model.ModeExam {
 		fail(c, 400, "非考试模式")
 		return
@@ -113,11 +109,7 @@ type paperAnswerReq struct {
 // SavePaperAnswer POST /api/quiz/:id/paper/answer 选择即保存（可修改，直到交卷/到时）
 func (h *PaperHandler) SavePaperAnswer(c *gin.Context) {
 	claims := c.MustGet("claims").(*auth.Claims)
-	quiz, found := quizByCode(h.DB, c.Param("id"))
-	if !found || quiz.ID != claims.QuizID {
-		fail(c, 403, "只能作答自己参加的考试")
-		return
-	}
+	quiz := c.MustGet("quiz").(*model.Quiz)
 	var req paperAnswerReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		fail(c, 400, "参数错误")
@@ -134,11 +126,7 @@ func (h *PaperHandler) SavePaperAnswer(c *gin.Context) {
 // SubmitPaper POST /api/quiz/:id/paper/submit 交卷（幂等）
 func (h *PaperHandler) SubmitPaper(c *gin.Context) {
 	claims := c.MustGet("claims").(*auth.Claims)
-	quiz, found := quizByCode(h.DB, c.Param("id"))
-	if !found || quiz.ID != claims.QuizID {
-		fail(c, 403, "只能提交自己参加的考试")
-		return
-	}
+	quiz := c.MustGet("quiz").(*model.Quiz)
 	result, err := h.Eng.FinalizePaper(quiz.ID, claims.UserID)
 	if err != nil {
 		fail(c, 400, err.Error())
