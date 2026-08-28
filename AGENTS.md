@@ -6,8 +6,8 @@
 
 线上实时答题系统：管理员创建答题活动、发布题目、控制流程；用户输入昵称进入、答题、抢答、查看实时排名。
 
-- 需求全文见 `task.md`
-- 开发计划与阶段划分见 `plan.md`，使用说明见 `README.md`
+- 需求全文见 `docs/task.md`
+- 开发计划与阶段划分见 `docs/plan.md`，使用说明见 `README.md`
 - 当前进度：阶段 0-8 ✅ 全部完成（抢答原子性、实时排行榜、统计页、加固 E2E 均通过；回归脚本 scripts/hardening_e2e.mjs）
 
 ## 仓库结构
@@ -15,7 +15,11 @@
 ```
 kaoshi/
 ├── docker-compose.yml      # mysql(13306) redis(16379) server(18080) web(13000)
-├── task.md / plan.md
+├── README.md / AGENTS.md
+├── docs/                  # 需求、计划、用例、接口文档
+│   ├── task.md / plan.md / TESTCASES.md
+│   ├── API.md / design-quiz-access.md
+│   └── 客户演示指南.md     # 不入库（含真实凭据，已 gitignore）
 ├── server/                 # Go 后端 (Gin + GORM + gorilla/websocket + go-redis)
 │   ├── cmd/server/         # 入口 main.go
 │   ├── internal/
@@ -82,7 +86,7 @@ npm run build               # 类型检查 + 构建（vue-tsc + vite）
 3. **防重复**：answers / rush_records 表的 `(quiz_id, question_id, user_id)` 唯一索引 + Redis 判重，双保险；分数只在首次提交时累加
 4. **倒计时以服务器时间为准**：下发 deadline 时间戳 + 服务端定时广播剩余秒数；到点服务端强制收卷
 5. **抢答原子性**：Redis Lua/ZSET 判序，按服务器收到时间排序，禁止使用客户端时间；`rank` 是 MySQL 8 保留字，SQL 中必须写 `` `rank` ``（反引号）
-6. **WS 消息协议**：`{event, data, ts}`，事件名对齐 task.md 二十二节（`activity:* / question:* / answer:* / rush:* / ranking:update / statistics:update`）
+6. **WS 消息协议**：`{event, data, ts}`，事件名对齐 docs/task.md 二十二节（`activity:* / question:* / answer:* / rush:* / ranking:update / statistics:update`）
 7. **状态机**：`WAITING / RUNNING / PAUSED / RUSHING / ANSWERING / REVEALING / FINISHED`，任何写操作先校验状态
 
 ## 编码约定
@@ -106,7 +110,7 @@ npm run build               # 类型检查 + 构建（vue-tsc + vite）
   ```
 
 - **E2E 执行时机**：仅在 git commit 前或用户明确要求时运行；平时修改代码/构建后不要主动跑 E2E
-- 用例清单与详细说明见 `TESTCASES.md`。任一断言失败：先修复再提交，禁止跳过或只跑其中一个。
+- 用例清单与详细说明见 `docs/TESTCASES.md`。任一断言失败：先修复再提交，禁止跳过或只跑其中一个。
 - **分支工作流（重要）**：每个阶段一个分支开发，完成后再合并回 main
   1. 开发前：`git checkout main && git pull` → `git checkout -b feat/stageN-简短英文`（如 `feat/stage5-rush`、`feat/stage7-stats`；修复用 `fix/xxx`）
   2. 阶段内可多次提交，消息：`<type>: 阶段N 描述`，type 用 chore/feat/fix/docs

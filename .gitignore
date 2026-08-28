@@ -25,3 +25,4 @@ dist/
 *.log
 web/src/assets/
 server-logs/
+docs/客户演示指南.md

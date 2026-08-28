@@ -38,8 +38,8 @@ docker compose up -d --build
 
 ## 测试流程（5 分钟跑通）
 
-> 快速造数：`python3 scripts/gen_testdata.py http://<服务器IP>:13000`
-> 自动创建「网络安全知识竞赛」：单选/多选/判断爻 20 题，每种题型前 10 题必答、后 10 题抢答（共 60 题，含解析），并打印邀请码
+> 快速造数：`node scripts/gen_exam.mjs`（直连后端 18080，自动清库并创建「计分规则验证赛」）
+> 自动创建 30 题验证赛（必答 40 分 + 抢答 60 分含倒扣，含解析与 5 个演示账号），并打印比赛码
 
 1. **管理端** `http://IP:13000/admin/login` 登录 → 创建答题（普通模式）→ 添加几道题（单选/多选/判断）
 2. 复制列表卡片上的 **加入链接**（`/join/<ID>`）发给用户
@@ -52,7 +52,7 @@ docker compose up -d --build
 ## 文档
 
 - **docs/API.md** —— REST / WebSocket 完整接口文档（含 curl 快速验证）
-- TESTCASES.md —— E2E 测试用例清单（提交前必须全绿）
+- docs/TESTCASES.md —— E2E 测试用例清单（提交前必须全绿）
 - `node scripts/seed.mjs` —— 清库并生成演示数据（3 个选手账号 + 2 场答题）
 
 ## 技术栈
