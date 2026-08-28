@@ -134,8 +134,10 @@
           </p>
         </div>
 
-        <!-- 时间到 -->
-        <div v-if="timeUp && !submitted" class="feedback bad">时间到，本题已自动提交</div>
+        <!-- 时间到（已选答案走 autoSubmit 补交，成功后 submitted=true 显示下方已提交提示） -->
+        <div v-if="timeUp && !submitted" class="feedback bad">
+          {{ selected.length ? '时间到，自动提交未成功，本题已收卷' : '时间到，本题已收卷，记为未答' }}
+        </div>
 
         <!-- 底部操作 -->
         <div class="actions">
@@ -292,8 +294,32 @@ function syncRemain() {
   const now = Date.now() + serverOffset
   const r = store.deadline_at - now
   store.remainMs = Math.max(0, r)
-  if (r <= 0 && !submitted.value && !timeUp.value) {
-    timeUp.value = true
+  if (r <= 0) onTimeUp()
+}
+
+/** 到点统一入口（本地倒计时归零 / 服务端 remain_sec=0 广播）：已选未交自动补交，未选由服务端收卷记未答 */
+function onTimeUp() {
+  if (submitted.value || timeUp.value) return
+  // 暂停/等待/已结束/抢答窗口不在此处理：抢答窗口到期由 rush:end 驱动，暂停时 deadline 冻结（恢复后重算）
+  if (store.status !== 'ANSWERING' && store.status !== 'RUNNING') return
+  timeUp.value = true
+  if (store.question && selected.value.length > 0 && !optionsLocked.value) {
+    autoSubmit()
+  }
+}
+
+/** 到点自动提交：把「已选未交」的答案补交（服务端 SubmitAnswer 允许 deadline+1.5s 宽限） */
+async function autoSubmit() {
+  const q = store.question
+  if (!q || submitted.value) return
+  submitted.value = true
+  try {
+    const r = await userApi.submitAnswer(q.id, selected.value.join(''), Date.now() - qPublishedAt)
+    lastResult.value = r
+    if (store.me) store.me.score = r.total_score
+  } catch {
+    // 竞态败给服务端收卷（已记未答）：回退展示，不弹错误打扰用户
+    submitted.value = false
   }
 }
 
@@ -348,7 +374,7 @@ function handleEvent(msg: WSMessage) {
       } else if (d.remain_sec !== undefined) {
         store.remainMs = d.remain_sec * 1000
       }
-      if (d.remain_sec === 0 && !submitted.value) timeUp.value = true
+      if (d.remain_sec === 0) onTimeUp()
       break
 
     case Ev.AnswerResult:
@@ -369,8 +395,16 @@ function handleEvent(msg: WSMessage) {
       break
 
     case Ev.ActivityStart:
+      store.status = 'RUNNING'
+      break
     case Ev.ActivityResume:
       store.status = 'RUNNING'
+      // 恢复后服务端按剩余时长重算 deadline，先按 remain_ms 本地校正，
+      // 避免旧 deadline 在恢复瞬间误触 onTimeUp
+      if (d.remain_ms > 0) {
+        store.deadline_at = Date.now() + serverOffset + d.remain_ms
+        store.remainMs = d.remain_ms
+      }
       break
     case Ev.ActivityPause:
       store.status = 'PAUSED'

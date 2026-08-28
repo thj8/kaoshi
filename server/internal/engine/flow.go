@@ -365,8 +365,17 @@ func (e *Engine) publishLocked(rt *Runtime, idx int) error {
 	return nil
 }
 
+// collectGrace 收卷宽限：与 SubmitAnswer 的 deadline+1.5s 宽限一致。
+// 客户端到点会把「已选未交」的答案自动补交，若服务端收卷记未答先落库，
+// 会把在途的补交挡成「已提交过本题答案」，因此到点后先等宽限期再收卷。
+const collectGrace = 1500 * time.Millisecond
+
 // forceCollect 到时强制收卷：必答题记录未答，非必答跳过
 func (e *Engine) forceCollect(quizID int64, questionID int64) {
+	// 等宽限期，放行客户端到点自动补交的在途请求（幂等性由下方状态/题目校验保证：
+	// 暂停期间状态非 ANSWERING、已切题则 questionID 不匹配，均直接返回）
+	time.Sleep(collectGrace)
+
 	rt, err := e.Get(quizID)
 	if err != nil {
 		return
