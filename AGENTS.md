@@ -8,7 +8,7 @@
 
 - 需求全文见 `docs/task.md`
 - 开发计划与阶段划分见 `docs/plan.md`，使用说明见 `README.md`
-- 当前进度：阶段 0-8 ✅ 全部完成（抢答原子性、实时排行榜、统计页、加固 E2E 均通过；回归脚本 scripts/hardening_e2e.mjs）
+- 当前进度：阶段 0-9 ✅ 全部完成（抢答原子性、实时排行榜、统计页、加固 E2E、考试模式排行榜实时化+独立大屏+考试用时口径修复均通过；回归脚本 scripts/security_e2e.mjs + scripts/hardening_e2e.mjs）
 
 ## 仓库结构
 

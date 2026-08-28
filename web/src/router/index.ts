@@ -14,6 +14,8 @@ const router = createRouter({
     { path: '/rank/:id', component: () => import('../user/RankPage.vue') },
     // 管理端
     { path: '/admin/login', component: () => import('../admin/LoginPage.vue') },
+    // 大屏排行榜（独立全屏页，不走 AdminLayout；/admin 守卫同样拦截）
+    { path: '/admin/rank/:id', component: () => import('../admin/RankScreenPage.vue') },
     {
       path: '/admin',
       component: () => import('../admin/AdminLayout.vue'),

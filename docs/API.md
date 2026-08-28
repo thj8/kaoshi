@@ -90,8 +90,37 @@
 ### GET /api/quiz/:id/ranking
 实时排行榜。`data: {"items":[{"rank":1,"user_id":1,"nickname":"Alice","score":10,"correct":1}]}`
 
+**考试（exam）模式被拒（403「考试模式排行榜仅管理员可见」）**：排行榜数据只有 admin 能看
+（走 `GET /api/admin/quiz/:id/statistics`），选手不可互看实时得分与排名；
+关闭 `show_ranking` 时仍只返回本人排名（`visible:false` + `mine`）。
+
+### GET /api/admin/quiz/:id/statistics（仅管理员）
+整场实时/最终统计，考试模式排行榜唯一入口。关键字段：
+
+```jsonc
+{
+  "status": "RUNNING",
+  "participants": 30, "finished": 12,
+  "max_score": 140, "min_score": 0, "avg_score": 88.5,
+  "avg_correct_rate": 62.3,          // 0-100
+  "questions": [ { "index":1, "question_id":147, "answered":18, "correct":12, "correct_rate":66.7, ... } ],
+  "ranking": [ { "rank":1, "user_id":9, "nickname":"张伟", "score":140, "correct":14, "wrong":0, "submitted_at":1787905291000 } ]
+}
+```
+
+- **考试模式为实时口径**：`ranking`/`max/min/avg/avg_correct_rate` 直接从答题草稿聚合
+  （保存时服务端已判分），未交卷者也实时上榜；逐题 `answered/correct` 同理。
+- `ranking[].submitted_at`：交卷时间（unix毫秒），未交卷为 0 —— 供大屏/控制台展示交卷时间列。
+- **考试模式同分排序**：分数降序 → 已交卷者在前 → 均已交卷按交卷时间升序（早者前）→
+  均未交卷按最后保存时间升序（先到分者前）。
+- 普通模式口径不变（来自 `participants` 表，交卷/答题时已实时累加）。
+- 响应绝不含 `answer/analysis`；管理端控制台「实时概况」与 `/admin/rank/:id` 大屏轮询本接口。
+
 ### GET /api/quiz/:id/result
 个人成绩单（活动结束后）。含本人每题作答、得分、是否正确（正确答案仅在 quiz 开启 show_answer 时下发）。
+
+`duration_sec`（用时）口径：普通/抢答模式 = 逐题作答时长累加；**考试模式 = 本人首次保存
+答案 → 交卷（未交卷则至今）的墙钟时间**（自由切题可重复改答，逐题累加窗口重叠会虚高）。
 
 ---
 
@@ -157,7 +186,7 @@
 | POST | /quiz/:id/reset | 重置比赛（清参与/答题/抢答记录，回 WAITING） |
 | POST | /quiz/:id/rush/start | 开启抢答窗口（进入 RUSHING） |
 | POST | /quiz/:id/rush/end | 提前关闭抢答窗口 |
-| GET | /quiz/:id/statistics | 实时/最终统计（正确率分布、逐题统计） |
+| GET | /quiz/:id/statistics | 实时/最终统计（正确率分布、逐题统计、实时排行榜；仅管理员） |
 
 ---
 

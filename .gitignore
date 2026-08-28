@@ -26,3 +26,6 @@ dist/
 web/src/assets/
 server-logs/
 docs/客户演示指南.md
+
+# 本地设计稿（二进制，不入库）
+/设计图.png
