@@ -148,11 +148,14 @@ function connect(token, onMsg) {
   const uc = await mkU(`s8c${sfx}`)
   const jc = (await j('POST', '/api/join', { quiz_id: quizC.code }, uc.token)).data
   let synced = null
+  const cdMsgs = []
   const ws1 = await connect(jc.token, m => { if (m.event === 'sync') synced = m.data })
   await j('POST', `/api/admin/quiz/${quizC.code}/start`, {}, at); await sleep(500)
   ws1.close() // 断线
   await sleep(300)
-  const ws2 = await connect(jc.token, m => { if (m.event === 'sync') synced = m.data })
+  const ws2 = await connect(jc.token, m => { if (m.event === 'sync') synced = m.data; if (m.event === 'question:countdown') cdMsgs.push(m.data) })
+  await sleep(2500) // 至少覆盖两次每秒倒计时广播
+  check('CD 倒计时每秒广播：含剩余秒与截止时间', cdMsgs.length >= 2 && cdMsgs.every(d => Number.isFinite(d.remain_sec) && d.remain_sec > 0 && d.deadline_at > 0 && d.question_id === qC.id), `n=${cdMsgs.length} last=${JSON.stringify(cdMsgs.at(-1))}`)
   await sleep(500)
   check('重连恢复：sync 带回状态与当前题', !!synced && synced.status === 'ANSWERING' && synced.question?.id === qC.id, `status=${synced?.status} q=${synced?.question?.id}`)
   const sub = await j('POST', `/api/question/${qC.id}/answer`, { answer: 'A', duration: 300 }, jc.token)
@@ -272,6 +275,9 @@ function connect(token, onMsg) {
   await sleep(60)
   let ls = (await j('GET', `/api/admin/quiz/${eq3.code}/statistics`, null, at)).data
   check('E22 实时排行榜：未交卷也显示得分(10/10)', lr(ls, id5)?.score === 10 && lr(ls, id6)?.score === 10, JSON.stringify(ls.ranking.map(r => [r.nickname, r.score])))
+  // 考试未交卷时 result 必须拒绝：否则脚本可「逐题保存选项→拉 result 看对错数变化」试答猜题
+  const rProbe = await j('GET', `/api/quiz/${eq3.code}/result`, null, jr5.token)
+  check('E31 考试未交卷拉成绩被拒(防试答探测)', rProbe.code !== 0, `code=${rProbe.code} msg=${rProbe.msg}`)
   check('E23 实时排行榜：同分未交卷先到分者排前', lr(ls, id5)?.rank === 1 && lr(ls, id6)?.rank === 2, `r5=${lr(ls, id5)?.rank} r6=${lr(ls, id6)?.rank}`)
   check('E24 实时汇总：max=min=avg=10、逐题已答=2', ls.max_score === 10 && ls.min_score === 10 && Math.abs(ls.avg_score - 10) < 0.01 && ls.questions[0].answered === 2, `max=${ls.max_score} avg=${ls.avg_score} ans=${ls.questions[0].answered}`)
   await sleep(2000) // 拉开首答→交卷时间差，供 E30 用时断言

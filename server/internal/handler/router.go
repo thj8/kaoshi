@@ -46,6 +46,8 @@ func Register(r *gin.Engine, cfg *config.Config, db *gorm.DB, rdb *redis.Client)
 	r.GET("/api/quiz/:id/brief", apiH.QuizBrief)
 
 	// 用户端（需登录）
+	// 比赛码作用域校验：:id 必须是 token 所在的比赛（收拢 6 个 handler 的越权卫兵）
+	qz := middleware.QuizScope(db)
 	user := r.Group("/api", middleware.UserAuth(db))
 	{
 		user.GET("/auth/me", apiH.Me)
@@ -53,17 +55,17 @@ func Register(r *gin.Engine, cfg *config.Config, db *gorm.DB, rdb *redis.Client)
 		user.GET("/my/quizzes", apiH.MyQuizzes)
 		user.POST("/join", apiH.Join)
 		user.GET("/quiz/:id", apiH.QuizInfo)
-		user.GET("/quiz/:id/current-question", answerH.CurrentQuestion)
+		user.GET("/quiz/:id/current-question", qz, answerH.CurrentQuestion)
 		user.POST("/question/:id/answer", answerH.Submit)
 		user.POST("/question/:id/rush", answerH.Rush)
-		user.GET("/quiz/:id/ranking", answerH.Ranking)
-		user.GET("/quiz/:id/result", answerH.Result)
+		user.GET("/quiz/:id/ranking", qz, answerH.Ranking)
+		user.GET("/quiz/:id/result", qz, answerH.Result)
 
 		// 考试（自由切题）模式
 		paperH := api.NewPaper(db, eng)
-		user.GET("/quiz/:id/paper", paperH.Paper)
-		user.POST("/quiz/:id/paper/answer", paperH.SavePaperAnswer)
-		user.POST("/quiz/:id/paper/submit", paperH.SubmitPaper)
+		user.GET("/quiz/:id/paper", qz, paperH.Paper)
+		user.POST("/quiz/:id/paper/answer", qz, paperH.SavePaperAnswer)
+		user.POST("/quiz/:id/paper/submit", qz, paperH.SubmitPaper)
 	}
 
 	// 管理端

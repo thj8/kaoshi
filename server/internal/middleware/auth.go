@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"kaoshi/internal/auth"
+	"kaoshi/internal/model"
 
 	"gorm.io/gorm"
 )
@@ -50,6 +51,25 @@ func UserAuth(db *gorm.DB) gin.HandlerFunc {
 		}
 		c.Set("claims", claims)
 		c.Set("uid", claims.UserID)
+		c.Next()
+	}
+}
+
+// QuizScope 用户端 quiz 作用域校验：路径参数 :id 为比赛码，token 的 quiz_id 必须匹配。
+// 统一收拢原先散在 6 个 handler 里的 quizByCode+越权卫兵；通过后 c.Set("quiz", *model.Quiz)。
+func QuizScope(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		claims := c.MustGet("claims").(*auth.Claims)
+		var quiz model.Quiz
+		if err := db.Where("code = ?", c.Param("id")).First(&quiz).Error; err != nil {
+			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"code": 404, "msg": "答题不存在"})
+			return
+		}
+		if claims.QuizID != quiz.ID {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"code": 403, "msg": "只能访问自己参加的答题"})
+			return
+		}
+		c.Set("quiz", &quiz)
 		c.Next()
 	}
 }
