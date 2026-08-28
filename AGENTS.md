@@ -4,7 +4,7 @@
 
 ## 项目简介
 
-线上实时答题系统：管理员创建答题活动、发布题目、控制流程；用户输入昵称进入、答题、抢答、查看实时排名。
+线上实时答题系统：管理员创建答题活动、发布题目、控制流程；用户账号登录进入、答题、抢答、查看实时排名。
 
 - 需求全文见 `docs/task.md`
 - 开发计划与阶段划分见 `docs/plan.md`，使用说明见 `README.md`
@@ -98,7 +98,7 @@ npm run build               # 类型检查 + 构建（vue-tsc + vite）
 - **管理端建题字段名**：REST 用 `time_limit`（秒），不是 `duration`——传错会静默落 0 导致题目无倒计时不强制收卷
 - Vue：一律 `<script setup lang="ts">` 组合式 API；REST 调用走 `src/api/index.ts` 的 `http`/`unwrap`；token 存 localStorage（key 见 `LS` 常量）
 - 新增页面：用户端放 `src/user/`；管理后台页面放 `src/admin/` 并作为 `AdminLayout` 的子路由注册（`src/router/index.ts`），侧边栏导航同步更新
-- **加入方式**：账号由管理端「用户管理」创建（无自助注册接口）；用户在 `/login` 登录，再通过 `/join/<quizID>` 链接自动 `POST /api/join {quiz_id}` 换取答题作用域 token（含 quiz_id，供 WS 与答题接口鉴权）
+- **加入方式**：账号由管理端「用户管理」创建（无自助注册接口）；用户在 `/login` 登录，再通过 `/join/<比赛码>` 链接自动 `POST /api/join {quiz_id: <比赛码>}` 换取答题作用域 token（含 quiz_id，供 WS 与答题接口鉴权）
 - 样式用全局 CSS 变量（`src/styles/main.css`），移动端适配必须考虑（现场手机答题）
 
 ## Git 约定
